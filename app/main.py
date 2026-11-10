@@ -1,11 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.core.config import settings
 from app.routers import health, items
+from app.routers.groups import router as groups_router
+
 
 app = FastAPI(title="Base API", docs_url="/docs")
 
-# Mở CORS cho phép Frontend truy cập
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,9 +16,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Gắn router
 app.include_router(health.router, prefix="/api")
 app.include_router(items.router, prefix="/api")
+app.include_router(groups_router, prefix="/api")
+
 
 @app.get("/")
 def root():
