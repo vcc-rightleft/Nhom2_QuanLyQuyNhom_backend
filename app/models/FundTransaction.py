@@ -2,7 +2,7 @@ from sqlalchemy import Column, BigInteger, String, Text, DateTime, ForeignKey, E
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
-from database import Base
+from db import Base
 
 class TransactionType(str, enum.Enum):
     INCOME = "INCOME"   # THU
