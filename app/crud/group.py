@@ -97,3 +97,63 @@ def join_group(db: Session, invite_code: str, user_id: int):
         "group_name": group.name,
         "user_id": user_id
     }
+def get_my_groups(db: Session, user_id: int):
+
+    memberships = db.query(GroupMember).filter(
+        GroupMember.user_id == user_id
+    ).all()
+
+    result = []
+
+    for membership in memberships:
+
+        group = db.query(FundGroup).filter(
+            FundGroup.id == membership.group_id
+        ).first()
+
+        member_count = db.query(GroupMember).filter(
+            GroupMember.group_id == group.id
+        ).count()
+
+        result.append({
+            "group_id": group.id,
+            "group_name": group.name,
+            "role": membership.role,
+            "member_count": member_count,
+            "fund_balance": 0
+        })
+
+    return result
+def get_group_detail(db: Session, group_id: int):
+
+    group = db.query(FundGroup).filter(
+        FundGroup.id == group_id
+    ).first()
+
+    if not group:
+        return None
+
+    return {
+        "id": group.id,
+        "name": group.name,
+        "description": group.description,
+        "invite_code": group.invite_code,
+        "status": group.status
+    }
+
+def get_group_members(db: Session, group_id: int):
+
+    members = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id
+    ).all()
+
+    result = []
+
+    for member in members:
+        result.append({
+            "user_id": member.user_id,
+            "role": member.role,
+            "status": member.status
+        })
+
+    return result
