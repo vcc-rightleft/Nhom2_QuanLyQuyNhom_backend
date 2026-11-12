@@ -1,11 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.core.config import settings
+<<<<<<< HEAD
 from app.routers import health, items, auth
 from app.db.session import engine
 from app.models.user import User, Base
 
 Base.metadata.create_all(bind=engine)
+=======
+from app.routers import health, items
+from app.routers.groups import router as groups_router
+
+>>>>>>> origin/feature/T3CC911-minhthang
 
 app = FastAPI(title="Base API", docs_url="/docs")
 from app.db.session import engine, Base
@@ -20,10 +27,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Gắn router
 app.include_router(health.router, prefix="/api")
 app.include_router(items.router, prefix="/api")
+<<<<<<< HEAD
 app.include_router(auth.router)
+=======
+app.include_router(groups_router, prefix="/api")
+
+>>>>>>> origin/feature/T3CC911-minhthang
 
 @app.get("/")
 def root():
