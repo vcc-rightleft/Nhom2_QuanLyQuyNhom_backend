@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-
+from app.models.FundTransaction import FundTransaction
+# Hoặc nếu Calculate.py nằm cùng thư mục app/models/:
+from .FundTransaction import FundTransaction
 def get_group_fund_balance(db: Session, group_id: int):
     # Tong THU
     total_income = db.query(func.coalesce(func.sum(FundTransaction.amount), 0))\

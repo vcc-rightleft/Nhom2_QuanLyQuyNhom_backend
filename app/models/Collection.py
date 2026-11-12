@@ -1,52 +1,51 @@
-from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
-
-# --- SCHEMAS CHO FUND TRANSACTION ---
-class FundTransactionBase(BaseModel):
-    type: str  # 'INCOME' hoac 'EXPENSE'
-    amount: int
-    category: Optional[str] = None
-    payer_id: Optional[int] = None
-    description: Optional[str] = None
-    occurred_at: Optional[datetime] = None
-    proof_image_url: Optional[str] = None
-
-class FundTransactionCreate(FundTransactionBase):
-    group_id: int
-
-class FundTransactionResponse(FundTransactionBase):
-    transaction_id: int
-    group_id: int
-    created_by: int
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-# Schema tinh so du quy (So du = Tong THU - Tong CHI)
-class FundBalanceResponse(BaseModel):
-    group_id: int
-    total_income: int
-    total_expense: int
-    balance: int
+from app.db.session import Base  # Hoặc đường dẫn Base tùy thuộc vào project của bạn
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 
 
-# --- SCHEMAS CHO COLLECTION (ĐỢT THU) ---
-class CollectionBase(BaseModel):
-    name: str
-    amount_per_member: int
-    due_date: Optional[datetime] = None
+class CollectionCampaign(Base):
+  __tablename__ = "collection_campaigns"
 
-class CollectionCreate(CollectionBase):
-    group_id: int
+  collection_id = Column(
+      Integer, primary_key=True, index=True, autoincrement=True
+  )
+  group_id = Column(
+      Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False
+  )
+  name = Column(String(255), nullable=False)
+  amount_per_member = Column(Float, nullable=False)  # X đồng định mức
+  status = Column(
+      String(50), default="ACTIVE", nullable=False
+  )  # ACTIVE, CLOSED
+  created_by = Column(
+      Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+  )
+  created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-class CollectionResponse(CollectionBase):
-    collection_id: int
-    group_id: int
-    status: str
-    created_by: int
-    created_at: datetime
+  # Quan hệ
+  debts = relationship(
+      "MemberDebt", back_populates="collection", cascade="all, delete-orphan"
+  )
 
-    class Config:
-        from_attributes = True
+
+class MemberDebt(Base):
+  __tablename__ = "member_debts"
+
+  debt_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+  collection_id = Column(
+      Integer,
+      ForeignKey("collection_campaigns.collection_id", ondelete="CASCADE"),
+      nullable=False,
+  )
+  user_id = Column(
+      Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+  )
+  amount_due = Column(Float, nullable=False)
+  status = Column(
+      String(50), default="UNPAID", nullable=False
+  )  # UNPAID (chưa đóng) / PAID (đã đóng)
+  paid_at = Column(DateTime, nullable=True)
+
+  # Quan hệ
+  collection = relationship("CollectionCampaign", back_populates="debts")
