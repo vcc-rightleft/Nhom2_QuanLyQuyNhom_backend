@@ -1,2 +1,5 @@
 from app.db.session import Base
-from app.models.item import Item
+from app.models.item import Item, User
+from app.models.Collection import CollectionCampaign, MemberDebt
+from app.models.FundTransaction import FundTransaction, Collection
+from app.models.debt_payment import Debt, Payment
