@@ -3,9 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.routers import health, items
 from app.routers import debt
+from app.routers import bills
 
 app = FastAPI(title="Base API", docs_url="/docs")
 app.include_router(debt.router)
+app.include_router(bills.router)
 
 # Mở CORS cho phép Frontend truy cập
 app.add_middleware(
