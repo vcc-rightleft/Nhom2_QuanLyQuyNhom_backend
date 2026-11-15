@@ -6,6 +6,7 @@ from app.routers import debt
 from app.routers import notification, debt, items  # Đảm bảo có import notification
 from app.models.notification import Notification
 
+
 app = FastAPI(title="Base API", docs_url="/docs")
 app.include_router(debt.router)
 app.include_router(notification.router)
