@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.routers import health, items, collection, expense, debt
+from app.routers import health, items, collection, expense, debt, bill_split
 
 app = FastAPI(title="Nhóm 2 - Quản Lý Quỹ Nhóm API", docs_url="/docs")
 
@@ -24,6 +24,7 @@ app.include_router(items.router, prefix="/api")
 app.include_router(collection.router)
 app.include_router(expense.router, prefix="/api")
 app.include_router(debt.router)
+app.include_router(bill_split.router, prefix="/api")
 
 # Phục vụ giao diện [UI] Tab Quỹ chung (T3CCFBA)
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
