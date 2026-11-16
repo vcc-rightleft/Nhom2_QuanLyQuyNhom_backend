@@ -1,25 +1,32 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from app.models.FundTransaction import FundTransaction
 
 
 def get_group_fund_balance(db: Session, group_id: int):
-    # Tổng THU
+    active_filter = or_(
+        FundTransaction.status == "ACTIVE",
+        FundTransaction.status.is_(None),
+    )
+
+    # Tổng THU (chỉ tính các giao dịch đang hiệu lực, không tính giao dịch đã huỷ)
     total_income = (
         db.query(func.coalesce(func.sum(FundTransaction.amount), 0))
         .filter(
             FundTransaction.group_id == group_id,
             FundTransaction.type == "INCOME",
+            active_filter,
         )
         .scalar()
     )
 
-    # Tổng CHI
+    # Tổng CHI (chỉ tính các giao dịch đang hiệu lực, không tính giao dịch đã huỷ)
     total_expense = (
         db.query(func.coalesce(func.sum(FundTransaction.amount), 0))
         .filter(
             FundTransaction.group_id == group_id,
             FundTransaction.type == "EXPENSE",
+            active_filter,
         )
         .scalar()
     )
