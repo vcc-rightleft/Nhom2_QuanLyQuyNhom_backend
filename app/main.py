@@ -16,9 +16,12 @@ from app.routers import health, items
 from app.routers.groups import router as groups_router
 
 from app.routers import debt
+from app.routers import notification, debt, items  # Đảm bảo có import notification
+from app.models.notification import Notification
 
 app = FastAPI(title="Base API", docs_url="/docs")
 app.include_router(debt.router)
+app.include_router(notification.router)
 
 app.add_middleware(
     CORSMiddleware,
