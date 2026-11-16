@@ -6,11 +6,14 @@ from app.models.debt_payment import SourceTypeEnum, DebtStatusEnum, PaymentStatu
 
 class PaymentBase(BaseModel):
     amount: Decimal
-    payment_method: str
+    payment_method: str = "transfer"
     proof_image: Optional[str] = None
 
 class PaymentCreate(PaymentBase):
     debt_id: int
+
+class PaymentReview(BaseModel):
+    status: str  # "CONFIRMED" hoặc "REJECTED"
 
 class PaymentResponse(PaymentBase):
     id: int
@@ -21,6 +24,12 @@ class PaymentResponse(PaymentBase):
 
     class Config:
         from_attributes = True
+
+class PayeeInfoResponse(BaseModel):
+    payee_id: int
+    payee_name: str
+    bank_name: Optional[str] = None
+    bank_account_number: Optional[str] = None
 
 class DebtBase(BaseModel):
     group_id: int
@@ -39,6 +48,13 @@ class DebtResponse(DebtBase):
     created_at: datetime
     updated_at: datetime
     payments: List[PaymentResponse] = []
+    payee_info: Optional[PayeeInfoResponse] = None  
 
     class Config:
         from_attributes = True
+
+class DebtSummaryResponse(BaseModel):
+    user_id: int
+    group_id: str = "all_groups"
+    total_records: int
+    data: List[DebtResponse] = []
