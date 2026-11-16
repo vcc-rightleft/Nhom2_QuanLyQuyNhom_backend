@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        return f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
+        pwd = f":{self.DB_PASSWORD}" if self.DB_PASSWORD else ""
+        return f"mysql+pymysql://{self.DB_USER}{pwd}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
 
 settings = Settings()

@@ -2,13 +2,10 @@ import enum
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Enum
 from sqlalchemy.orm import declarative_base
-
+from app.db.session import Base
 # Nếu trong Backend/app/db của bạn đã có sẵn Base (ví dụ: from app.db.base import Base)
 # thì bạn có thể import Base từ đó. Ở đây dùng declarative_base() tương thích độc lập:
-try:
-    from app.db.database import Base
-except ImportError:
-    Base = declarative_base()
+
 
 
 class SystemRole(str, enum.Enum):
