@@ -7,6 +7,9 @@ from app.models.user import User
 from app.models.notification import Notification
 from app.routers import auth, debt, health, items, notification
 from app.routers.groups import router as groups_router
+from app.models.Bill import Bill
+from app.models.Bill_share import BillShare
+from app.routers import auth, debt, health, items, notification, bill
 
 Base.metadata.create_all(bind=engine)
 
@@ -26,7 +29,7 @@ app.include_router(auth.router)
 app.include_router(groups_router, prefix="/api")
 app.include_router(debt.router, prefix="/api")
 app.include_router(notification.router, prefix="/api")
-
+app.include_router(bill.router, prefix="/api")
 
 @app.get("/")
 def root():
