@@ -1,13 +1,23 @@
+# from fastapi import FastAPI
+# from fastapi.middleware.cors import CORSMiddleware
+# from app.core.config import settings
+# from app.routers import health, items
+# from app.routers import notification, debt, items  # Đảm bảo có import notification
+# from app.models.notification import Notification
+
+
+# app = FastAPI(title="Base API", docs_url="/docs")
+# app.include_router(debt.router)
+# app.include_router(notification.router)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.routers import health, items
-from app.routers import debt
-from app.routers import notification, debt, items  # Đảm bảo có import notification
-from app.models.notification import Notification
-
+from app.routers import health, items, notification, debt  # Import đầy đủ các router ở đây
 
 app = FastAPI(title="Base API", docs_url="/docs")
+
+# Đăng ký router
 app.include_router(debt.router)
 app.include_router(notification.router)
 

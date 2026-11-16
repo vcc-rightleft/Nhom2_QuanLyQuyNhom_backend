@@ -16,14 +16,15 @@ def api_get_debts_owed_by_me(
     """
     API trả về danh sách các khoản nợ mà user_id đang phải trả cho người khác.
     """
+    # Đổi thành get_debts_owed_by_me cho khớp với file crud/debt.py
     debts = crud_debt.get_debts_owed_by_me(db, user_id=user_id, group_id=group_id)
+    
     return {
         "user_id": user_id,
         "group_id": group_id if group_id else "all_groups",
         "total_records": len(debts),
         "data": debts
     }
-
 @router.get("/owed-to-me/{user_id}", summary="Lấy danh sách các khoản người khác nợ tôi (theo nhóm hoặc tổng các nhóm)")
 def api_get_debts_owed_to_me(
     user_id: int, 
