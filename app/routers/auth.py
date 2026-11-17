@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-
+from app.crud.user import invalidate_user_tokens
 from app.models.user import User, SystemRole, UserStatus
 from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
 from app.schemas.user import UserResponse
@@ -117,3 +117,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 )
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/logout", summary="Đăng xuất và vô hiệu hóa JWT Token hiện tại")
+def logout_user(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return invalidate_user_tokens(db=db, current_user=current_user)

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from app.models.user import SystemRole, UserStatus
 
 
@@ -26,6 +26,16 @@ class UserUpdateProfile(BaseModel):
     bank_account_no: Optional[str] = None
     bank_account_name: Optional[str] = None
 
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v.strip() != "":
+            cleaned = v.strip()
+            if not cleaned.replace("+", "").isdigit() or len(cleaned) < 9:
+                raise ValueError("Số điện thoại không hợp lệ (cần tối thiểu 9 chữ số)")
+            return cleaned
+        return v
+
 
 class UserResponse(UserBase):
     id: int
@@ -37,3 +47,13 @@ class UserResponse(UserBase):
 
     class Config:
         from_attributes = True
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(..., min_length=1, description="Mật khẩu hiện tại")
+    new_password: str = Field(..., min_length=6, max_length=100, description="Mật khẩu mới tối thiểu 6 ký tự")
+
+
+# Alias giữ tương thích với app/crud/user.py và app/routers/user.py
+UserProfileOut = UserResponse
+UserProfileUpdate = UserUpdateProfile
