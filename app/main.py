@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.db.session import Base, engine
 from app.models.user import User
 from app.models.notification import Notification
-from app.models.bill import Bill
+from app.models.Bill import Bill
 from app.models.Bill_share import BillShare
 from app.routers import (
     auth,

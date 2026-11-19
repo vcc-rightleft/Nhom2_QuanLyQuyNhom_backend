@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.session import get_db
-from app.models.bill import Bill, BillItem, BillShare, SplitTypeEnum, FeeSplitModeEnum
+from app.models.Bill import Bill, SplitTypeEnum, FeeSplitModeEnum
+from app.models.Bill_item import BillItem
+from app.models.Bill_share import BillShare
 from app.models.debt_payment import Debt, SourceTypeEnum, DebtStatusEnum
 from app.schemas.bill_split import (
     ItemizedSplitRequest,
