@@ -1,34 +1,31 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.db.session import Base, engine
 from app.models.user import User
 from app.models.notification import Notification
-from app.routers import auth, debt, health, items, notification, user
-from app.routers.groups import router as groups_router
 from app.models.bill import Bill
 from app.models.Bill_share import BillShare
-from app.routers import auth, debt, health, items, notification, bill
-from app.routers import health, items, collection, expense
-
-Base.metadata.create_all(bind=engine)
-
-app = FastAPI(title="Quản Lý Quỹ Nhóm API", docs_url="/docs")
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-
-from app.core.config import settings
 from app.routers import (
+    auth,
+    bill,
+    bill_split,
+    collection,
+    debt,
+    expense,
     health,
     items,
-    collection,
-    expense,
-    debt,
-    bill_split,
+    notification,
     transaction_history,
+    user,
 )
+from app.routers.groups import router as groups_router
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Nhóm 2 - Quản Lý Quỹ Nhóm API", docs_url="/docs")
 
@@ -46,12 +43,13 @@ app.include_router(items.router, prefix="/api")
 app.include_router(auth.router)
 app.include_router(groups_router, prefix="/api")
 app.include_router(debt.router, prefix="/api")
+app.include_router(debt.router)
 app.include_router(notification.router, prefix="/api")
+app.include_router(notification.router)
 app.include_router(bill.router, prefix="/api")
 app.include_router(user.router)
 app.include_router(collection.router)
 app.include_router(expense.router, prefix="/api")
-app.include_router(debt.router)
 app.include_router(bill_split.router, prefix="/api")
 app.include_router(transaction_history.router, prefix="/api")
 

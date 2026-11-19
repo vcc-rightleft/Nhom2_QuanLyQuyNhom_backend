@@ -4,6 +4,30 @@ from datetime import datetime
 from decimal import Decimal
 from app.models.debt_payment import SourceTypeEnum, DebtStatusEnum, PaymentStatusEnum
 
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
+
+class PaymentCreate(BaseModel):
+    debt_id: int
+    amount: float
+    payment_method: str = "transfer"
+    proof_image: Optional[str] = None
+
+class PaymentReview(BaseModel):
+    status: str  # "CONFIRMED" hoặc "REJECTED"
+
+class PaymentResponse(BaseModel):
+    id: int
+    debt_id: int
+    amount: float
+    proof_image: Optional[str]
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class PaymentBase(BaseModel):
     amount: Decimal
     payment_method: str
