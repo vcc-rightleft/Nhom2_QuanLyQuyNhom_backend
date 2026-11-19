@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
@@ -12,12 +12,12 @@ class CollectionCampaign(Base):
     )
     group_id = Column(Integer, nullable=False, index=True, default=1)
     name = Column(String(255), nullable=False)
-    amount_per_member = Column(Float, nullable=False)  # X đồng định mức mỗi người
-    due_date = Column(String(50), nullable=True)  # Hạn đóng (YYYY-MM-DD)
+    amount_per_member = Column(BigInteger, nullable=False)  # Định mức mỗi người (VND)
+    due_date = Column(String(50), nullable=True)  # Hạn đóng (YYYY-MM-DD hoặc ISO string)
     status = Column(
         String(50), default="ACTIVE", nullable=False
-    )  # ACTIVE, CLOSED
-    created_by = Column(Integer, nullable=True)
+    )  # ACTIVE, CLOSED, COMPLETED, CANCELLED
+    created_by = Column(Integer, nullable=True, default=1)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Quan hệ với danh sách đóng quỹ của từng thành viên
@@ -38,10 +38,11 @@ class MemberDebt(Base):
     user_id = Column(Integer, nullable=False, index=True)
     member_name = Column(String(255), nullable=True)
     role = Column(String(50), default="MEMBER", nullable=True)
-    amount_due = Column(Float, nullable=False)
+    amount_due = Column(BigInteger, nullable=False)
+    amount_paid = Column(BigInteger, default=0, nullable=False)
     status = Column(
         String(50), default="UNPAID", nullable=False
-    )  # UNPAID (chưa đóng) / PAID (đã đóng)
+    )  # UNPAID, PARTIAL, PAID
     paid_at = Column(DateTime, nullable=True)
 
     # Quan hệ ngược lại đợt thu
