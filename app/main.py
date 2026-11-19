@@ -3,9 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.db.session import Base, engine
-from app.models.user import User
-from app.models.notification import Notification
-from app.routers import auth, debt, health, items, notification
+import app.models  # noqa: F401 - Đăng ký toàn bộ SQLAlchemy models trước khi create_all
+from app.routers import auth, bills, debt, health, items, notification, statement
 from app.routers.groups import router as groups_router
 
 Base.metadata.create_all(bind=engine)
@@ -26,6 +25,8 @@ app.include_router(auth.router)
 app.include_router(groups_router, prefix="/api")
 app.include_router(debt.router, prefix="/api")
 app.include_router(notification.router, prefix="/api")
+app.include_router(statement.router, prefix="/api")
+app.include_router(bills.router, prefix="/api")
 
 
 @app.get("/")
