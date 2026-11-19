@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.fund_group import FundGroup
 from app.models.group_member import GroupMember
 from app.schemas.group import GroupCreate
+from app.models.debt_payment import Debt, DebtStatusEnum
 
 
 def generate_invite_code():
@@ -157,3 +158,131 @@ def get_group_members(db: Session, group_id: int):
         })
 
     return result
+# task T3CCB18
+def has_unpaid_debt(db: Session, user_id: int, group_id: int):
+
+    debt = db.query(Debt).filter(
+        Debt.group_id == group_id,
+        Debt.status != DebtStatusEnum.PAID,
+        (
+            (Debt.debtor_id == user_id) |
+            (Debt.payee_id == user_id)
+        )
+    ).first()
+
+    return debt is not None
+
+def leave_group(
+    db: Session,
+    group_id: int,
+    user_id: int
+):
+
+    member = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == user_id
+    ).first()
+
+    if not member:
+        return {
+            "message": "Thành viên không tồn tại trong nhóm"
+        }
+
+    if has_unpaid_debt(db, user_id, group_id):
+        return {
+            "message": "Không thể rời nhóm khi còn công nợ"
+        }
+
+    if member.role == "HOST":
+        return {
+            "message": "Host phải chuyển quyền trước khi rời nhóm"
+        }
+
+    db.delete(member)
+    db.commit()
+
+    return {
+        "message": "Rời nhóm thành công"
+    }
+
+def transfer_host(
+    db: Session,
+    group_id: int,
+    current_host_id: int,
+    new_host_id: int
+):
+
+    current_host = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == current_host_id,
+        GroupMember.role == "HOST"
+    ).first()
+
+    if not current_host:
+        return {
+            "message": "Bạn không phải HOST"
+        }
+
+    new_host = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == new_host_id
+    ).first()
+
+    if not new_host:
+        return {
+            "message": "Thành viên không thuộc nhóm"
+        }
+
+    current_host.role = "MEMBER"
+    new_host.role = "HOST"
+
+    db.commit()
+
+    return {
+        "message": "Chuyển quyền HOST thành công"
+    }
+
+def remove_member(
+    db: Session,
+    group_id: int,
+    host_id: int,
+    member_id: int
+):
+
+    host = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == host_id,
+        GroupMember.role == "HOST"
+    ).first()
+
+    if not host:
+        return {
+            "message": "Chỉ HOST mới được xóa thành viên"
+        }
+
+    if host_id == member_id:
+        return {
+            "message": "Không thể tự xóa chính mình"
+        }
+
+    member = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == member_id
+    ).first()
+
+    if not member:
+        return {
+            "message": "Không tìm thấy thành viên"
+        }
+
+    if has_unpaid_debt(db, member_id, group_id):
+        return {
+            "message": "Không thể xóa thành viên còn công nợ"
+        }
+
+    db.delete(member)
+    db.commit()
+
+    return {
+        "message": "Xóa thành viên thành công"
+    }
