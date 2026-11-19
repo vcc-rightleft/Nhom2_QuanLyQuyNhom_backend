@@ -13,6 +13,7 @@ from app.models.Bill_share import BillShare
 from app.routers import (
     auth,
     bill,
+    bills,
     bill_split,
     collection,
     debt,
@@ -47,6 +48,8 @@ app.include_router(debt.router)
 app.include_router(notification.router, prefix="/api")
 app.include_router(notification.router)
 app.include_router(bill.router, prefix="/api")
+app.include_router(bills.router, prefix="/api")
+app.include_router(bills.router)
 app.include_router(user.router)
 app.include_router(collection.router)
 app.include_router(expense.router, prefix="/api")
