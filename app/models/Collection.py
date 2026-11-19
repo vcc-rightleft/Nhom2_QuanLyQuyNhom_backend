@@ -1,51 +1,40 @@
 from datetime import datetime
-from app.db.session import Base  # Hoặc đường dẫn Base tùy thuộc vào project của bạn
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+from app.db.session import Base
 
 
 class CollectionCampaign(Base):
-  __tablename__ = "collection_campaigns"
+    __tablename__ = "collection_campaigns"
 
-  collection_id = Column(
-      Integer, primary_key=True, index=True, autoincrement=True
-  )
-  group_id = Column(
-      Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False
-  )
-  name = Column(String(255), nullable=False)
-  amount_per_member = Column(Float, nullable=False)  # X đồng định mức
-  status = Column(
-      String(50), default="ACTIVE", nullable=False
-  )  # ACTIVE, CLOSED
-  created_by = Column(
-      Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-  )
-  created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    collection_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    group_id = Column(Integer, nullable=False, index=True, default=1)
+    name = Column(String(255), nullable=False)
+    amount_per_member = Column(BigInteger, nullable=False)  # Định mức mỗi người (VND)
+    due_date = Column(DateTime, nullable=True)  # Hạn nộp
+    status = Column(String(50), default="ACTIVE", nullable=False)  # ACTIVE, COMPLETED, CANCELLED
+    created_by = Column(Integer, nullable=True, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-  # Quan hệ
-  debts = relationship(
-      "MemberDebt", back_populates="collection", cascade="all, delete-orphan"
-  )
+    debts = relationship(
+        "MemberDebt", back_populates="collection", cascade="all, delete-orphan"
+    )
 
 
 class MemberDebt(Base):
-  __tablename__ = "member_debts"
+    __tablename__ = "member_debts"
 
-  debt_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-  collection_id = Column(
-      Integer,
-      ForeignKey("collection_campaigns.collection_id", ondelete="CASCADE"),
-      nullable=False,
-  )
-  user_id = Column(
-      Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-  )
-  amount_due = Column(Float, nullable=False)
-  status = Column(
-      String(50), default="UNPAID", nullable=False
-  )  # UNPAID (chưa đóng) / PAID (đã đóng)
-  paid_at = Column(DateTime, nullable=True)
+    debt_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    collection_id = Column(
+        Integer,
+        ForeignKey("collection_campaigns.collection_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id = Column(Integer, nullable=False, index=True)
+    member_name = Column(String(255), nullable=True)
+    amount_due = Column(BigInteger, nullable=False)
+    amount_paid = Column(BigInteger, default=0, nullable=False)
+    status = Column(String(50), default="UNPAID", nullable=False)  # UNPAID, PARTIAL, PAID
+    paid_at = Column(DateTime, nullable=True)
 
-  # Quan hệ
-  collection = relationship("CollectionCampaign", back_populates="debts")
+    collection = relationship("CollectionCampaign", back_populates="debts")
