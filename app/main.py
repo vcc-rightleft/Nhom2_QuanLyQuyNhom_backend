@@ -10,6 +10,7 @@ from app.routers.groups import router as groups_router
 from app.models.Bill import Bill
 from app.models.Bill_share import BillShare
 from app.routers import auth, debt, health, items, notification, bill
+from app.routers import health, items, collection, expense
 
 Base.metadata.create_all(bind=engine)
 
@@ -31,6 +32,9 @@ app.include_router(debt.router, prefix="/api")
 app.include_router(notification.router, prefix="/api")
 app.include_router(bill.router, prefix="/api")
 app.include_router(user.router)
+app.include_router(collection.router)
+app.include_router(expense.router, prefix="/api")
+
 @app.get("/")
 def root():
     return {"message": "Server đang chạy."}
