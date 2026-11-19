@@ -1,6 +1,7 @@
 import random
 import string
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.fund_group import FundGroup
@@ -21,6 +22,12 @@ def generate_invite_code():
 def create_group(db: Session, group: GroupCreate):
 
     invite_code = generate_invite_code()
+
+    # đảm bảo mã mời không trùng
+    while db.query(FundGroup).filter(
+        FundGroup.invite_code == invite_code
+    ).first():
+        invite_code = generate_invite_code()
 
     db_group = FundGroup(
         name=group.name,
@@ -63,14 +70,16 @@ def join_group(db: Session, invite_code: str, user_id: int):
     ).first()
 
     if not group:
-        return {
-            "message": "Không tìm thấy mã mời"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Không tìm thấy mã mời"
+        )
 
     if group.status == "ARCHIVED":
-        return {
-            "message": "Nhóm đã ARCHIVED"
-        }
+        raise HTTPException(
+            status_code=400,
+            detail="Nhóm đã ARCHIVED"
+        )
 
     existed = db.query(GroupMember).filter(
         GroupMember.group_id == group.id,
@@ -78,9 +87,10 @@ def join_group(db: Session, invite_code: str, user_id: int):
     ).first()
 
     if existed:
-        return {
-            "message": "Bạn đã tham gia nhóm"
-        }
+        raise HTTPException(
+            status_code=409,
+            detail="Bạn đã tham gia nhóm"
+        )
 
     member = GroupMember(
         group_id=group.id,
@@ -98,6 +108,8 @@ def join_group(db: Session, invite_code: str, user_id: int):
         "group_name": group.name,
         "user_id": user_id
     }
+
+
 def get_my_groups(db: Session, user_id: int):
 
     memberships = db.query(GroupMember).filter(
@@ -112,6 +124,9 @@ def get_my_groups(db: Session, user_id: int):
             FundGroup.id == membership.group_id
         ).first()
 
+        if not group:
+            continue
+
         member_count = db.query(GroupMember).filter(
             GroupMember.group_id == group.id
         ).count()
@@ -125,6 +140,8 @@ def get_my_groups(db: Session, user_id: int):
         })
 
     return result
+
+
 def get_group_detail(db: Session, group_id: int):
 
     group = db.query(FundGroup).filter(
@@ -132,7 +149,10 @@ def get_group_detail(db: Session, group_id: int):
     ).first()
 
     if not group:
-        return None
+        raise HTTPException(
+            status_code=404,
+            detail="Không tìm thấy nhóm"
+        )
 
     return {
         "id": group.id,
@@ -141,6 +161,7 @@ def get_group_detail(db: Session, group_id: int):
         "invite_code": group.invite_code,
         "status": group.status
     }
+
 
 def get_group_members(db: Session, group_id: int):
 
@@ -158,7 +179,10 @@ def get_group_members(db: Session, group_id: int):
         })
 
     return result
+
+
 # task T3CCB18
+
 def has_unpaid_debt(db: Session, user_id: int, group_id: int):
 
     debt = db.query(Debt).filter(
@@ -172,6 +196,7 @@ def has_unpaid_debt(db: Session, user_id: int, group_id: int):
 
     return debt is not None
 
+
 def leave_group(
     db: Session,
     group_id: int,
@@ -184,19 +209,22 @@ def leave_group(
     ).first()
 
     if not member:
-        return {
-            "message": "Thành viên không tồn tại trong nhóm"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Thành viên không tồn tại trong nhóm"
+        )
 
     if has_unpaid_debt(db, user_id, group_id):
-        return {
-            "message": "Không thể rời nhóm khi còn công nợ"
-        }
+        raise HTTPException(
+            status_code=400,
+            detail="Không thể rời nhóm khi còn công nợ"
+        )
 
     if member.role == "HOST":
-        return {
-            "message": "Host phải chuyển quyền trước khi rời nhóm"
-        }
+        raise HTTPException(
+            status_code=400,
+            detail="Host phải chuyển quyền trước khi rời nhóm"
+        )
 
     db.delete(member)
     db.commit()
@@ -204,6 +232,7 @@ def leave_group(
     return {
         "message": "Rời nhóm thành công"
     }
+
 
 def transfer_host(
     db: Session,
@@ -219,9 +248,10 @@ def transfer_host(
     ).first()
 
     if not current_host:
-        return {
-            "message": "Bạn không phải HOST"
-        }
+        raise HTTPException(
+            status_code=403,
+            detail="Bạn không phải HOST"
+        )
 
     new_host = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
@@ -229,9 +259,10 @@ def transfer_host(
     ).first()
 
     if not new_host:
-        return {
-            "message": "Thành viên không thuộc nhóm"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Thành viên không thuộc nhóm"
+        )
 
     current_host.role = "MEMBER"
     new_host.role = "HOST"
@@ -241,6 +272,7 @@ def transfer_host(
     return {
         "message": "Chuyển quyền HOST thành công"
     }
+
 
 def remove_member(
     db: Session,
@@ -256,14 +288,16 @@ def remove_member(
     ).first()
 
     if not host:
-        return {
-            "message": "Chỉ HOST mới được xóa thành viên"
-        }
+        raise HTTPException(
+            status_code=403,
+            detail="Chỉ HOST mới được xóa thành viên"
+        )
 
     if host_id == member_id:
-        return {
-            "message": "Không thể tự xóa chính mình"
-        }
+        raise HTTPException(
+            status_code=400,
+            detail="Không thể tự xóa chính mình"
+        )
 
     member = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
@@ -271,14 +305,16 @@ def remove_member(
     ).first()
 
     if not member:
-        return {
-            "message": "Không tìm thấy thành viên"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Không tìm thấy thành viên"
+        )
 
     if has_unpaid_debt(db, member_id, group_id):
-        return {
-            "message": "Không thể xóa thành viên còn công nợ"
-        }
+        raise HTTPException(
+            status_code=400,
+            detail="Không thể xóa thành viên còn công nợ"
+        )
 
     db.delete(member)
     db.commit()
