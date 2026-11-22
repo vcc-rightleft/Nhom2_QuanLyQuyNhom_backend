@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.db.session import Base, engine
 
 # Import models để SQLAlchemy nhận diện các bảng
+from app.models.admin_account_audit import AdminAccountAudit
 from app.models.user import User
 from app.models.fund_group import FundGroup
 from app.models.group_member import GroupMember
@@ -22,6 +23,7 @@ from app.models.Collection import CollectionCampaign, MemberDebt
 # Import các router
 from app.routers import (
     auth,
+    admin_accounts,
     bill,
     bills,
     bill_split,
@@ -88,6 +90,7 @@ app.include_router(bills.router, prefix="/api")
 app.include_router(bill_split.router, prefix="/api")
 app.include_router(transaction_history.router, prefix="/api")
 app.include_router(user.router)
+app.include_router(admin_accounts.router)
 
 
 # ==============================
