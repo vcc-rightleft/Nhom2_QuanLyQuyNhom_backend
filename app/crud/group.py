@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.fund_group import FundGroup
 from app.models.group_member import GroupMember
+from app.models.user import User
 from app.schemas.group import GroupCreate
 from app.models.debt_payment import Debt, DebtStatusEnum
 
@@ -19,11 +20,9 @@ def generate_invite_code():
     )
 
 
-def create_group(db: Session, group: GroupCreate):
-
+def create_group(db: Session, group: GroupCreate, user_id: int):
     invite_code = generate_invite_code()
 
-    # đảm bảo mã mời không trùng
     while db.query(FundGroup).filter(
         FundGroup.invite_code == invite_code
     ).first():
@@ -35,7 +34,7 @@ def create_group(db: Session, group: GroupCreate):
         image_url=group.image_url,
         invite_code=invite_code,
         status="ACTIVE",
-        creator_id=1
+        creator_id=user_id
     )
 
     db.add(db_group)
@@ -44,7 +43,7 @@ def create_group(db: Session, group: GroupCreate):
 
     host = GroupMember(
         group_id=db_group.id,
-        user_id=1,
+        user_id=user_id,
         role="HOST",
         status="ACTIVE"
     )
@@ -64,9 +63,10 @@ def create_group(db: Session, group: GroupCreate):
 
 
 def join_group(db: Session, invite_code: str, user_id: int):
+    code_clean = invite_code.strip().upper().replace("#", "")
 
     group = db.query(FundGroup).filter(
-        FundGroup.invite_code == invite_code
+        FundGroup.invite_code == code_clean
     ).first()
 
     if not group:
@@ -111,7 +111,6 @@ def join_group(db: Session, invite_code: str, user_id: int):
 
 
 def get_my_groups(db: Session, user_id: int):
-
     memberships = db.query(GroupMember).filter(
         GroupMember.user_id == user_id
     ).all()
@@ -119,7 +118,6 @@ def get_my_groups(db: Session, user_id: int):
     result = []
 
     for membership in memberships:
-
         group = db.query(FundGroup).filter(
             FundGroup.id == membership.group_id
         ).first()
@@ -134,6 +132,8 @@ def get_my_groups(db: Session, user_id: int):
         result.append({
             "group_id": group.id,
             "group_name": group.name,
+            "invite_code": group.invite_code,
+            "image_url": group.image_url,
             "role": membership.role,
             "member_count": member_count,
             "fund_balance": 0
@@ -143,7 +143,6 @@ def get_my_groups(db: Session, user_id: int):
 
 
 def get_group_detail(db: Session, group_id: int):
-
     group = db.query(FundGroup).filter(
         FundGroup.id == group_id
     ).first()
@@ -158,13 +157,13 @@ def get_group_detail(db: Session, group_id: int):
         "id": group.id,
         "name": group.name,
         "description": group.description,
+        "image_url": group.image_url,
         "invite_code": group.invite_code,
         "status": group.status
     }
 
 
 def get_group_members(db: Session, group_id: int):
-
     members = db.query(GroupMember).filter(
         GroupMember.group_id == group_id
     ).all()
@@ -172,8 +171,11 @@ def get_group_members(db: Session, group_id: int):
     result = []
 
     for member in members:
+        user = db.query(User).filter(User.id == member.user_id).first()
         result.append({
             "user_id": member.user_id,
+            "full_name": user.full_name if user else f"Thành viên #{member.user_id}",
+            "email": user.email if user else "",
             "role": member.role,
             "status": member.status
         })
@@ -181,10 +183,7 @@ def get_group_members(db: Session, group_id: int):
     return result
 
 
-# task T3CCB18
-
 def has_unpaid_debt(db: Session, user_id: int, group_id: int):
-
     debt = db.query(Debt).filter(
         Debt.group_id == group_id,
         Debt.status != DebtStatusEnum.PAID,
@@ -202,7 +201,6 @@ def leave_group(
     group_id: int,
     user_id: int
 ):
-
     member = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
         GroupMember.user_id == user_id
@@ -240,7 +238,6 @@ def transfer_host(
     current_host_id: int,
     new_host_id: int
 ):
-
     current_host = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
         GroupMember.user_id == current_host_id,
@@ -280,7 +277,6 @@ def remove_member(
     host_id: int,
     member_id: int
 ):
-
     host = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
         GroupMember.user_id == host_id,
