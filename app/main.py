@@ -25,6 +25,8 @@ from app.routers import (
     bill,
     bills,
     bill_split,
+    transaction_history,
+    bill_split,
     collection,
     debt,
     expense,
@@ -83,6 +85,8 @@ app.include_router(fund.router, prefix="/api")
 app.include_router(debt.router, prefix="/api")
 app.include_router(bill.router, prefix="/api")
 app.include_router(bills.router, prefix="/api")
+app.include_router(bill_split.router, prefix="/api")
+app.include_router(transaction_history.router, prefix="/api")
 app.include_router(user.router)
 
 

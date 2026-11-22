@@ -11,6 +11,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.core.deps import get_current_user
+from app.models.user import User, SystemRole
 from app.models.Calculate import get_group_fund_balance
 from app.models.FundTransaction import FundTransaction, FundTransactionLog
 from app.models.group_member import GroupMember
@@ -46,19 +48,8 @@ def _verify_group_member(db: Session, group_id: int, viewer_id: int) -> None:
     except Exception:
         memberships = []
 
-    if memberships:
-        member_ids = {m.user_id for m in memberships}
-        if viewer_id not in member_ids:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Người dùng ID={viewer_id} không phải là thành viên của nhóm quỹ #{group_id}!",
-            )
-    else:
-        if group_id == 1 and viewer_id not in range(1, 11):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Người dùng ID={viewer_id} không phải là thành viên của nhóm quỹ #{group_id}!",
-            )
+    if not memberships or viewer_id not in {m.user_id for m in memberships}:
+        raise HTTPException(status_code=403, detail="Bạn không phải thành viên đang hoạt động của nhóm")
 
 
 def _snapshot_tx(tx: FundTransaction) -> str:
@@ -135,7 +126,8 @@ def _resolve_period_bounds(
 )
 def get_fund_transaction_history(
     group_id: int,
-    viewer_id: int = Query(1, description="ID thành viên đang xem"),
+    viewer_id: Optional[int] = Query(None, description="ID người xem (phải trùng JWT)"),
+    current_user: User = Depends(get_current_user),
     tx_type: Optional[str] = Query(None, description="INCOME hoặc EXPENSE"),
     start_date: Optional[date] = Query(None, description="Từ ngày (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Đến ngày (YYYY-MM-DD)"),
@@ -146,6 +138,9 @@ def get_fund_transaction_history(
     page_size: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
+    if viewer_id is not None and viewer_id != current_user.id:
+        raise HTTPException(status_code=403, detail="viewer_id không khớp tài khoản đăng nhập")
+    viewer_id = current_user.id
     _verify_group_member(db, group_id=group_id, viewer_id=viewer_id)
 
     query = db.query(FundTransaction).filter(FundTransaction.group_id == group_id)
@@ -208,7 +203,8 @@ def get_fund_transaction_history(
 )
 def export_history_csv(
     group_id: int,
-    viewer_id: int = Query(1, description="ID thành viên đang xem"),
+    viewer_id: Optional[int] = Query(None, description="ID người xem (phải trùng JWT)"),
+    current_user: User = Depends(get_current_user),
     month: Optional[str] = Query(None, description="Kỳ tháng YYYY-MM (VD: 2026-11)"),
     start_date: Optional[date] = Query(None, description="Từ ngày (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Đến ngày (YYYY-MM-DD)"),
@@ -216,6 +212,9 @@ def export_history_csv(
     category: Optional[str] = Query(None, description="Lọc theo danh mục"),
     db: Session = Depends(get_db),
 ):
+    if viewer_id is not None and viewer_id != current_user.id:
+        raise HTTPException(status_code=403, detail="viewer_id không khớp tài khoản đăng nhập")
+    viewer_id = current_user.id
     _verify_group_member(db, group_id=group_id, viewer_id=viewer_id)
     start_dt, end_dt, period_label = _resolve_period_bounds(month, start_date, end_date)
 
@@ -264,12 +263,16 @@ def export_history_csv(
 )
 def export_statement_csv(
     group_id: int,
-    viewer_id: int = Query(1, description="ID thành viên đang xem"),
+    viewer_id: Optional[int] = Query(None, description="ID người xem (phải trùng JWT)"),
+    current_user: User = Depends(get_current_user),
     month: Optional[str] = Query(None, description="Kỳ tháng YYYY-MM (VD: 2026-11)"),
     start_date: Optional[date] = Query(None, description="Từ ngày (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Đến ngày (YYYY-MM-DD)"),
     db: Session = Depends(get_db),
 ):
+    if viewer_id is not None and viewer_id != current_user.id:
+        raise HTTPException(status_code=403, detail="viewer_id không khớp tài khoản đăng nhập")
+    viewer_id = current_user.id
     _verify_group_member(db, group_id=group_id, viewer_id=viewer_id)
     start_dt, end_dt, period_label = _resolve_period_bounds(month, start_date, end_date)
 
@@ -372,6 +375,7 @@ def update_fund_transaction_within_24h(
     transaction_id: int,
     payload: UpdateFundTransactionRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     if payload.role.strip().upper() not in ("HOST", "ADMIN"):
         raise HTTPException(
@@ -396,6 +400,16 @@ def update_fund_transaction_within_24h(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Không tìm thấy giao dịch quỹ ID={transaction_id}!",
         )
+
+    # Client-supplied role/host_id cannot authorize a financial mutation.
+    active_host = db.query(GroupMember).filter(
+        GroupMember.group_id == tx.group_id,
+        GroupMember.user_id == current_user.id,
+        GroupMember.role == "HOST",
+        GroupMember.status == "ACTIVE",
+    ).first()
+    if not active_host and current_user.role != SystemRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Chỉ Host của nhóm mới có quyền sửa/hủy giao dịch")
 
     if getattr(tx, "status", "ACTIVE") == "CANCELLED":
         raise HTTPException(
@@ -443,7 +457,7 @@ def update_fund_transaction_within_24h(
             transaction_id=tx.transaction_id,
             group_id=tx.group_id,
             action="UPDATE",
-            changed_by=payload.host_id,
+            changed_by=current_user.id,
             reason=reason,
             old_data=old_snapshot,
             new_data=new_snapshot,
@@ -485,6 +499,7 @@ def cancel_fund_transaction_within_24h(
     transaction_id: int,
     payload: CancelFundTransactionRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     if payload.role.strip().upper() not in ("HOST", "ADMIN"):
         raise HTTPException(
@@ -509,6 +524,16 @@ def cancel_fund_transaction_within_24h(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Không tìm thấy giao dịch quỹ ID={transaction_id}!",
         )
+
+    # Client-supplied role/host_id cannot authorize a financial mutation.
+    active_host = db.query(GroupMember).filter(
+        GroupMember.group_id == tx.group_id,
+        GroupMember.user_id == current_user.id,
+        GroupMember.role == "HOST",
+        GroupMember.status == "ACTIVE",
+    ).first()
+    if not active_host and current_user.role != SystemRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Chỉ Host của nhóm mới có quyền sửa/hủy giao dịch")
 
     if getattr(tx, "status", "ACTIVE") == "CANCELLED":
         raise HTTPException(
@@ -541,7 +566,7 @@ def cancel_fund_transaction_within_24h(
             transaction_id=tx.transaction_id,
             group_id=tx.group_id,
             action="CANCEL",
-            changed_by=payload.host_id,
+            changed_by=current_user.id,
             reason=reason,
             old_data=old_snapshot,
             new_data=new_snapshot,
@@ -578,7 +603,8 @@ def cancel_fund_transaction_within_24h(
 )
 def get_transaction_edit_logs(
     transaction_id: int,
-    viewer_id: int = Query(1, description="ID thành viên đang xem"),
+    viewer_id: Optional[int] = Query(None, description="ID người xem (phải trùng JWT)"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     tx = (
@@ -592,7 +618,9 @@ def get_transaction_edit_logs(
             detail=f"Không tìm thấy giao dịch quỹ ID={transaction_id}!",
         )
 
-    _verify_group_member(db, group_id=tx.group_id, viewer_id=viewer_id)
+    if viewer_id is not None and viewer_id != current_user.id:
+        raise HTTPException(status_code=403, detail="viewer_id không khớp tài khoản đăng nhập")
+    _verify_group_member(db, group_id=tx.group_id, viewer_id=current_user.id)
 
     return (
         db.query(FundTransactionLog)

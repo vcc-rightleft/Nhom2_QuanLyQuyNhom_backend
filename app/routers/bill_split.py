@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.session import get_db
+from app.core.deps import get_current_user
+from app.models.user import User, SystemRole
+from app.models.group_member import GroupMember
 from app.models.Bill import Bill, SplitTypeEnum, FeeSplitModeEnum
 from app.models.Bill_item import BillItem
 from app.models.Bill_share import BillShare
@@ -16,6 +19,19 @@ from app.schemas.bill_split import (
 )
 
 router = APIRouter(prefix="/bills", tags=["Bill Splitting (Itemized & Custom)"])
+
+def _verify_invoice_permissions(db: Session, user: User, group_id: int, payer_id: int, created_by: int, participant_ids: List[int]):
+    if user.id != payer_id or user.id != created_by:
+        raise HTTPException(status_code=403, detail="Người tạo và người trả phải là tài khoản đăng nhập")
+    active_members = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id, GroupMember.status == "ACTIVE"
+    ).all()
+    by_id = {m.user_id: m for m in active_members}
+    if user.id not in by_id or (str(by_id[user.id].role).upper() not in ("HOST", "GROUPROLE.HOST") and getattr(by_id[user.id].role, "value", None) != "HOST"):
+        raise HTTPException(status_code=403, detail="Chỉ Host đang hoạt động mới được tạo hóa đơn")
+    if not set(participant_ids).issubset(by_id):
+        raise HTTPException(status_code=400, detail="Hóa đơn có thành viên không thuộc nhóm")
+
 
 CENT = Decimal("0.01")
 
@@ -211,8 +227,9 @@ def calculate_custom_split(payload: CustomSplitRequest) -> dict:
     summary="Chia hoá đơn theo món ăn (món dùng chung chia đều, phí ship/phục vụ chia đều hoặc theo tỉ lệ)",
 )
 def api_split_bill_by_items(
-    payload: ItemizedSplitRequest, db: Session = Depends(get_db)
+    payload: ItemizedSplitRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
+    _verify_invoice_permissions(db, current_user, payload.group_id, payload.payer_id, payload.created_by, [uid for item in payload.items for uid in item.user_ids])
     calc = calculate_itemized_split(payload)
 
     try:
@@ -312,8 +329,9 @@ def api_split_bill_by_items(
     summary="Chia hoá đơn tuỳ chỉnh (nhập số tiền từng người, tổng phải khớp tổng hoá đơn)",
 )
 def api_split_bill_custom(
-    payload: CustomSplitRequest, db: Session = Depends(get_db)
+    payload: CustomSplitRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
+    _verify_invoice_permissions(db, current_user, payload.group_id, payload.payer_id, payload.created_by, [share.user_id for share in payload.shares])
     calc = calculate_custom_split(payload)
 
     try:
@@ -396,8 +414,10 @@ def api_split_bill_custom(
 
 
 @router.get("/{bill_id}", summary="Xem chi tiết hoá đơn và phân bổ công nợ")
-def api_get_bill_detail(bill_id: int, db: Session = Depends(get_db)):
+def api_get_bill_detail(bill_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
+    if bill and not db.query(GroupMember).filter(GroupMember.group_id == bill.group_id, GroupMember.user_id == current_user.id, GroupMember.status == "ACTIVE").first():
+        raise HTTPException(status_code=403, detail="Bạn không thuộc nhóm của hóa đơn")
     if not bill:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
