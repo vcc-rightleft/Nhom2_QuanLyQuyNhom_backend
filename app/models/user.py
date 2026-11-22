@@ -33,6 +33,7 @@ class User(Base):
     role = Column(Enum(SystemRole), nullable=False, default=SystemRole.USER)
     status = Column(Enum(UserStatus), nullable=False, default=UserStatus.ACTIVE)
     lock_reason = Column(String(500), nullable=True)
+    token_version = Column(Integer, nullable=False, default=0)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(

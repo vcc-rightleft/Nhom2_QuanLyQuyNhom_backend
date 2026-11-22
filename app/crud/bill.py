@@ -33,73 +33,52 @@ def calculate_equal_split(total_amount: int, participant_ids: list[int], payer_i
 
 
 def create_equal_split_bill(db: Session, bill_in: BillEqualSplitCreate) -> dict:
-    # 1. Tính toán chia đều
+    """Tạo hóa đơn, phần chia, công nợ và thông báo trong *một* transaction."""
     shares_map = calculate_equal_split(
         total_amount=bill_in.total_amount,
         participant_ids=bill_in.participant_ids,
-        payer_id=bill_in.paid_by
+        payer_id=bill_in.paid_by,
     )
-
-    # 2. Lưu hoá đơn vào bảng bills
-    db_bill = Bill(
-        group_id=bill_in.group_id,
-        title=bill_in.title,
-        bill_date=bill_in.bill_date,
-        total_amount=bill_in.total_amount,
-        paid_by=bill_in.paid_by,
-        split_type="EQUAL",
-        note=bill_in.note,
-        image_url=bill_in.image_url
-    )
-    db.add(db_bill)
-    db.commit()
-    db.refresh(db_bill)
-
-    # 3. Lưu BillShare bằng cách tự động dò tên cột khóa ngoại của nhóm
-    shares_out = []
-    for uid, share_amount in shares_map.items():
-        share_kwargs = {"bill_id": db_bill.id}
-
-        # Tự động gán đúng tên cột user/member trong BillShare của nhóm
-        if hasattr(BillShare, "user_id"):
-            share_kwargs["user_id"] = uid
-        elif hasattr(BillShare, "member_id"):
-            share_kwargs["member_id"] = uid
-        elif hasattr(BillShare, "account_id"):
-            share_kwargs["account_id"] = uid
-        else:
-            share_kwargs["user_id"] = uid  # Fallback mặc định
-
-        # Tự động gán đúng tên cột số tiền trong BillShare
-        if hasattr(BillShare, "amount"):
-            share_kwargs["amount"] = share_amount
-        elif hasattr(BillShare, "share_amount"):
-            share_kwargs["share_amount"] = share_amount
-
-        db_share = BillShare(**share_kwargs)
-        db.add(db_share)
-        shares_out.append({"user_id": uid, "amount": float(share_amount)})
-
-        # Tạo công nợ và thông báo (trừ người trả trước)
-        if uid != bill_in.paid_by and share_amount > 0:
-            create_debts(
-                db=db,
-                group_id=bill_in.group_id,
-                source_type="INVOICE",
-                debtor_id=uid,
-                payee_id=bill_in.paid_by,
-                amount=float(share_amount)
-            )
-
-            notif = Notification(
-                user_id=uid,
-                title=f"Hoá đơn mới: {bill_in.title}",
-                message=f"Bạn cần thanh toán {share_amount:,}đ cho hoá đơn '{bill_in.title}'."
-            )
-            db.add(notif)
-
-    db.commit()
-
+    try:
+        db_bill = Bill(
+            group_id=bill_in.group_id,
+            title=bill_in.title,
+            bill_date=bill_in.bill_date,
+            total_amount=bill_in.total_amount,
+            paid_by=bill_in.paid_by,
+            split_type="EQUAL",
+            note=bill_in.note,
+            image_url=bill_in.image_url,
+        )
+        db.add(db_bill)
+        db.flush()
+        shares_out = []
+        for user_id, amount in shares_map.items():
+            share = BillShare(bill_id=db_bill.id, member_id=user_id, amount=amount)
+            db.add(share)
+            if user_id != bill_in.paid_by and amount > 0:
+                debt = create_debts(
+                    db=db,
+                    group_id=bill_in.group_id,
+                    source_type="INVOICE",
+                    debtor_id=user_id,
+                    payee_id=bill_in.paid_by,
+                    amount=amount,
+                    source_id=db_bill.id,
+                    commit=False,
+                )
+                share.debt_id = debt.id
+                db.add(Notification(
+                    user_id=user_id,
+                    title=f"Hoá đơn mới: {bill_in.title}",
+                    message=f"Bạn cần thanh toán {amount:,}đ cho hoá đơn '{bill_in.title}'.",
+                ))
+            shares_out.append({"user_id": user_id, "amount": float(amount)})
+        db.commit()
+        db.refresh(db_bill)
+    except Exception:
+        db.rollback()
+        raise
     return {
         "id": db_bill.id,
         "group_id": db_bill.group_id,
@@ -110,7 +89,7 @@ def create_equal_split_bill(db: Session, bill_in: BillEqualSplitCreate) -> dict:
         "split_type": db_bill.split_type,
         "note": db_bill.note,
         "image_url": db_bill.image_url,
-        "shares": shares_out
+        "shares": shares_out,
     }
 
 

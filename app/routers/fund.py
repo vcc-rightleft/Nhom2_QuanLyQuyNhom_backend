@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.models.FundTransaction import FundTransaction
 from app.models.fund_group import FundGroup
 from app.models.group_member import GroupMember
 from app.models.user import User
+from app.core.deps import get_current_user, require_group_member, require_group_host
 
 router = APIRouter(prefix="/groups/{group_id}", tags=["Group Fund (Quỹ chung)"])
 
@@ -24,32 +25,24 @@ class FundTransactionCreate(BaseModel):
     description: Optional[str] = None
     occurred_at: Optional[datetime] = None
     proof_image_url: Optional[str] = None
-    created_by: Optional[int] = 1
+    created_by: Optional[int] = None
 
 
 class CollectionCreate(BaseModel):
     name: str = Field(..., min_length=1)
     amount_per_member: int = Field(..., gt=0)
     due_date: Optional[datetime] = None
-    created_by: Optional[int] = 1
+    created_by: Optional[int] = None
 
 
 class ConfirmPaymentRequest(BaseModel):
     user_id: int
     amount: Optional[int] = None
     description: Optional[str] = None
-    confirmed_by: Optional[int] = 1
+    confirmed_by: Optional[int] = None
 
 
 # --- HELPERS ---
-def _ensure_host(role_header: Optional[str]):
-    if (role_header or "HOST").upper() != "HOST":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chỉ Host mới có quyền thực hiện thao tác này!",
-        )
-
-
 def _get_group_members_info(db: Session, group_id: int) -> List[dict]:
     memberships = (
         db.query(GroupMember)
@@ -70,23 +63,7 @@ def _get_group_members_info(db: Session, group_id: int) -> List[dict]:
             for m in memberships
         ]
 
-    users = db.query(User).limit(10).all()
-    if users:
-        return [
-            {
-                "user_id": u.id,
-                "display_name": u.full_name,
-                "role": "HOST" if idx == 0 else "MEMBER",
-            }
-            for idx, u in enumerate(users)
-        ]
-
-    return [
-        {"user_id": 1, "display_name": "Lê Nguyễn Hữu Quốc", "role": "HOST"},
-        {"user_id": 2, "display_name": "Nguyễn Hữu Minh Dương", "role": "MEMBER"},
-        {"user_id": 3, "display_name": "Trần Thị Bảo Ngọc", "role": "MEMBER"},
-        {"user_id": 4, "display_name": "Phạm Minh Tuấn", "role": "MEMBER"},
-    ]
+    return []
 
 
 def _serialize_transaction(tx: FundTransaction) -> dict:
@@ -101,6 +78,7 @@ def _serialize_transaction(tx: FundTransaction) -> dict:
         "occurred_at": tx.occurred_at.isoformat() if tx.occurred_at else None,
         "proof_image_url": tx.proof_image_url,
         "created_by": tx.created_by,
+        "status": tx.status,
         "created_at": tx.created_at.isoformat() if tx.created_at else None,
     }
 
@@ -132,7 +110,7 @@ def _serialize_collection(col: CollectionCampaign) -> dict:
 
 # --- ENDPOINTS ---
 @router.get("/fund-overview")
-def get_fund_overview(group_id: int, db: Session = Depends(get_db)):
+def get_fund_overview(group_id: int, current_user: User = Depends(require_group_member), db: Session = Depends(get_db)):
     group = db.query(FundGroup).filter(FundGroup.id == group_id).first()
     group_info = {
         "group_id": group.id if group else group_id,
@@ -167,7 +145,7 @@ def get_fund_overview(group_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/fund-balance")
-def get_balance(group_id: int, db: Session = Depends(get_db)):
+def get_balance(group_id: int, current_user: User = Depends(require_group_member), db: Session = Depends(get_db)):
     return get_group_fund_balance(db, group_id)
 
 
@@ -175,6 +153,7 @@ def get_balance(group_id: int, db: Session = Depends(get_db)):
 def list_transactions(
     group_id: int,
     type: Optional[str] = Query(None),
+    current_user: User = Depends(require_group_member),
     db: Session = Depends(get_db),
 ):
     query = db.query(FundTransaction).filter(FundTransaction.group_id == group_id)
@@ -188,10 +167,9 @@ def list_transactions(
 def create_transaction(
     group_id: int,
     payload: FundTransactionCreate,
-    x_user_role: Optional[str] = Header("HOST", alias="X-User-Role"),
+    current_user: User = Depends(require_group_host),
     db: Session = Depends(get_db),
 ):
-    _ensure_host(x_user_role)
 
     tx_type = payload.type.upper()
     if tx_type not in ("INCOME", "EXPENSE"):
@@ -217,7 +195,7 @@ def create_transaction(
         description=(payload.description or "").strip() or None,
         occurred_at=payload.occurred_at or datetime.utcnow(),
         proof_image_url=(payload.proof_image_url or "").strip() or None,
-        created_by=payload.created_by or 1,
+        created_by=current_user.id,
         created_at=datetime.utcnow(),
     )
     db.add(new_tx)
@@ -232,7 +210,7 @@ def create_transaction(
 
 
 @router.get("/collections")
-def list_collections(group_id: int, db: Session = Depends(get_db)):
+def list_collections(group_id: int, current_user: User = Depends(require_group_member), db: Session = Depends(get_db)):
     cols = (
         db.query(CollectionCampaign)
         .filter(CollectionCampaign.group_id == group_id)
@@ -246,10 +224,9 @@ def list_collections(group_id: int, db: Session = Depends(get_db)):
 def create_collection(
     group_id: int,
     payload: CollectionCreate,
-    x_user_role: Optional[str] = Header("HOST", alias="X-User-Role"),
+    current_user: User = Depends(require_group_host),
     db: Session = Depends(get_db),
 ):
-    _ensure_host(x_user_role)
 
     new_col = CollectionCampaign(
         group_id=group_id,
@@ -257,7 +234,7 @@ def create_collection(
         amount_per_member=payload.amount_per_member,
         due_date=payload.due_date,
         status="ACTIVE",
-        created_by=payload.created_by or 1,
+        created_by=current_user.id,
         created_at=datetime.utcnow(),
     )
     db.add(new_col)
@@ -286,10 +263,9 @@ def confirm_member_payment(
     group_id: int,
     collection_id: int,
     payload: ConfirmPaymentRequest,
-    x_user_role: Optional[str] = Header("HOST", alias="X-User-Role"),
+    current_user: User = Depends(require_group_host),
     db: Session = Depends(get_db),
 ):
-    _ensure_host(x_user_role)
 
     col = (
         db.query(CollectionCampaign)
@@ -312,11 +288,13 @@ def confirm_member_payment(
     )
     if not debt:
         raise HTTPException(status_code=404, detail="Không tìm thấy thành viên trong đợt thu.")
+    if col.status != "ACTIVE":
+        raise HTTPException(status_code=400, detail="Đợt thu không còn hoạt động.")
 
     remaining = max(0, int(debt.amount_due) - int(debt.amount_paid or 0))
     pay_amount = int(payload.amount) if payload.amount is not None else remaining
-    if pay_amount <= 0:
-        raise HTTPException(status_code=400, detail="Thành viên này đã đóng đủ hoặc số tiền <= 0.")
+    if pay_amount <= 0 or pay_amount > remaining:
+        raise HTTPException(status_code=400, detail="Số tiền đóng phải lớn hơn 0 và không vượt số tiền còn lại.")
 
     now = datetime.utcnow()
     debt.amount_paid = int(debt.amount_paid or 0) + pay_amount
@@ -331,7 +309,7 @@ def confirm_member_payment(
         payer_id=payload.user_id,
         description=payload.description or f"Xác nhận đóng đợt thu: {col.name}",
         occurred_at=now,
-        created_by=payload.confirmed_by or 1,
+        created_by=current_user.id,
         created_at=now,
     )
     db.add(new_tx)
@@ -356,10 +334,9 @@ def confirm_member_payment(
 def cancel_collection(
     group_id: int,
     collection_id: int,
-    x_user_role: Optional[str] = Header("HOST", alias="X-User-Role"),
+    current_user: User = Depends(require_group_host),
     db: Session = Depends(get_db),
 ):
-    _ensure_host(x_user_role)
 
     col = (
         db.query(CollectionCampaign)

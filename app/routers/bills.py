@@ -14,6 +14,8 @@ from app.models.Bill_item import BillItem
 from app.models.Bill_share import BillShare
 from app.models.debt_payment import Debt
 from app.models.user import User
+from app.models.group_member import GroupMember
+from app.core.deps import get_current_user
 from app.schemas.bill_preview import BillPreviewRequest
 from app.schemas.bill import (
     BillCancelResponse,
@@ -32,6 +34,20 @@ router = APIRouter(
 )
 
 VALID_SPLIT_TYPES = {"EQUAL", "ITEMIZED", "CUSTOM"}
+
+
+def _check_bill_access(db: Session, group_id: int, user: User, host: bool = False):
+    if user.role.value == "ADMIN":
+        return
+    roles = ["HOST"] if host else ["HOST", "MEMBER"]
+    member = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == user.id,
+        GroupMember.status == "ACTIVE",
+        GroupMember.role.in_(roles),
+    ).first()
+    if not member:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập nhóm này")
 
 
 @router.post("/preview", summary="Xem trước kết quả chia hoá đơn")
@@ -225,7 +241,9 @@ def list_group_bills(
     page: int = Query(1, ge=1, description="Trang hiện tại"),
     page_size: int = Query(20, ge=1, le=100, description="Số bản ghi mỗi trang"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    _check_bill_access(db, group_id, current_user)
     if start_date and end_date and start_date > end_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -303,13 +321,14 @@ def list_group_bills(
     status_code=status.HTTP_200_OK,
     summary="Chi tiết hoá đơn (kèm danh sách từng món và phần của từng người)",
 )
-def get_bill_detail(bill_id: int, db: Session = Depends(get_db)):
+def get_bill_detail(bill_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
     if not bill:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Không tìm thấy hoá đơn ID={bill_id}.",
         )
+    _check_bill_access(db, bill.group_id, current_user)
     return _build_bill_detail(db, bill)
 
 
@@ -323,8 +342,11 @@ def update_bill(
     bill_id: int,
     payload: BillUpdateRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
+    if bill:
+        _check_bill_access(db, bill.group_id, current_user, host=True)
     if not bill:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -507,8 +529,12 @@ def update_bill(
     status_code=status.HTTP_200_OK,
     summary="Huỷ hoá đơn (chỉ cho phép khi chưa ai thanh toán nợ; tự động huỷ công nợ)",
 )
-def cancel_bill(bill_id: int, db: Session = Depends(get_db)):
+def cancel_bill(bill_id: int, db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
+    if bill:
+        _check_bill_access(db, bill.group_id, current_user, host=True)
     if not bill:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

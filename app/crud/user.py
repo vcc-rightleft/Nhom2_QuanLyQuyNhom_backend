@@ -45,13 +45,13 @@ def change_user_password(db: Session, current_user: User, payload: ChangePasswor
 
     # 3. Lưu password_hash mới
     current_user.password_hash = get_password_hash(payload.new_password)
+    current_user.token_version = int(current_user.token_version or 0) + 1
 
     db.commit()
     db.refresh(current_user)
     return {"message": "Đổi mật khẩu thành công."}
 
 def invalidate_user_tokens(db: Session, current_user: User) -> dict:
-    if hasattr(current_user, "token_version"):
-        current_user.token_version = (current_user.token_version or 1) + 1
-        db.commit()
-    return {"message": "Đã đăng xuất và vô hiệu hóa token hiện tại."}
+    current_user.token_version = int(current_user.token_version or 0) + 1
+    db.commit()
+    return {"message": "Đã thu hồi các token đăng nhập trước đó."}

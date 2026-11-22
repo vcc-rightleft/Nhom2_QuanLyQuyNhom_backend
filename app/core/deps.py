@@ -27,13 +27,19 @@ def get_current_user(
             detail="Token không hợp lệ hoặc đã hết hạn.",
         )
 
-    user = db.query(User).filter(User.id == int(payload["sub"])).first()
+    try:
+        user_id = int(payload["sub"])
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Token không hợp lệ")
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Người dùng không tồn tại.",
         )
 
+    if int(payload.get("tv", -1)) != int(user.token_version or 0):
+        raise HTTPException(status_code=401, detail="Phiên đăng nhập đã bị thu hồi")
     if user.status == UserStatus.LOCKED:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

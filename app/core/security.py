@@ -4,7 +4,9 @@ from typing import Optional, Dict, Any
 import bcrypt
 import jwt
 
-SECRET_KEY = os.getenv("SECRET_KEY", "nhom2_quan_ly_quy_nhom_secret_key_2026")
+SECRET_KEY = os.getenv("SECRET_KEY", "")
+if len(SECRET_KEY) < 32:
+    raise RuntimeError("Thiếu SECRET_KEY bảo mật trong Backend/.env (tối thiểu 32 ký tự).")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 giờ
 

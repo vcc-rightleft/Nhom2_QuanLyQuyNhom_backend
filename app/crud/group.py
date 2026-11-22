@@ -1,4 +1,4 @@
-import random
+import secrets
 import string
 
 from fastapi import HTTPException
@@ -9,14 +9,12 @@ from app.models.group_member import GroupMember
 from app.models.user import User
 from app.schemas.group import GroupCreate
 from app.models.debt_payment import Debt, DebtStatusEnum
+from app.models.Calculate import get_group_fund_balance
 
 
 def generate_invite_code():
     return ''.join(
-        random.choices(
-            string.ascii_uppercase + string.digits,
-            k=8
-        )
+        secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8)
     )
 
 
@@ -38,8 +36,7 @@ def create_group(db: Session, group: GroupCreate, user_id: int):
     )
 
     db.add(db_group)
-    db.commit()
-    db.refresh(db_group)
+    db.flush()
 
     host = GroupMember(
         group_id=db_group.id,
@@ -50,6 +47,7 @@ def create_group(db: Session, group: GroupCreate, user_id: int):
 
     db.add(host)
     db.commit()
+    db.refresh(db_group)
 
     return {
         "id": db_group.id,
@@ -87,10 +85,12 @@ def join_group(db: Session, invite_code: str, user_id: int):
     ).first()
 
     if existed:
-        raise HTTPException(
-            status_code=409,
-            detail="Bạn đã tham gia nhóm"
-        )
+        if existed.status == "ACTIVE":
+            raise HTTPException(status_code=409, detail="Bạn đã tham gia nhóm")
+        existed.status = "ACTIVE"
+        existed.role = "MEMBER"
+        db.commit()
+        return {"message": "Tham gia nhóm thành công", "group_id": group.id, "group_name": group.name, "user_id": user_id}
 
     member = GroupMember(
         group_id=group.id,
@@ -112,7 +112,8 @@ def join_group(db: Session, invite_code: str, user_id: int):
 
 def get_my_groups(db: Session, user_id: int):
     memberships = db.query(GroupMember).filter(
-        GroupMember.user_id == user_id
+        GroupMember.user_id == user_id,
+        GroupMember.status == "ACTIVE"
     ).all()
 
     result = []
@@ -122,11 +123,12 @@ def get_my_groups(db: Session, user_id: int):
             FundGroup.id == membership.group_id
         ).first()
 
-        if not group:
+        if not group or group.status != "ACTIVE":
             continue
 
         member_count = db.query(GroupMember).filter(
-            GroupMember.group_id == group.id
+            GroupMember.group_id == group.id,
+            GroupMember.status == "ACTIVE"
         ).count()
 
         result.append({
@@ -136,7 +138,7 @@ def get_my_groups(db: Session, user_id: int):
             "image_url": group.image_url,
             "role": membership.role,
             "member_count": member_count,
-            "fund_balance": 0
+            "fund_balance": get_group_fund_balance(db, group.id)["balance"]
         })
 
     return result
@@ -170,14 +172,20 @@ def get_group_members(db: Session, group_id: int):
 
     result = []
 
+    from app.models.user import User
+    users = db.query(User).filter(User.id.in_([m.user_id for m in members])).all() if members else []
+    user_map = {u.id: u for u in users}
     for member in members:
-        user = db.query(User).filter(User.id == member.user_id).first()
+        if member.status != "ACTIVE":
+            continue
+        user = user_map.get(member.user_id)
         result.append({
             "user_id": member.user_id,
             "full_name": user.full_name if user else f"Thành viên #{member.user_id}",
             "email": user.email if user else "",
             "role": member.role,
-            "status": member.status
+            "status": member.status,
+            "full_name": user.full_name if user else f"Thành viên #{member.user_id}",
         })
 
     return result
@@ -203,7 +211,8 @@ def leave_group(
 ):
     member = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
-        GroupMember.user_id == user_id
+        GroupMember.user_id == user_id,
+        GroupMember.status == "ACTIVE"
     ).first()
 
     if not member:
@@ -241,7 +250,8 @@ def transfer_host(
     current_host = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
         GroupMember.user_id == current_host_id,
-        GroupMember.role == "HOST"
+        GroupMember.role == "HOST",
+        GroupMember.status == "ACTIVE"
     ).first()
 
     if not current_host:
@@ -252,7 +262,8 @@ def transfer_host(
 
     new_host = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
-        GroupMember.user_id == new_host_id
+        GroupMember.user_id == new_host_id,
+        GroupMember.status == "ACTIVE"
     ).first()
 
     if not new_host:
@@ -280,7 +291,8 @@ def remove_member(
     host = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
         GroupMember.user_id == host_id,
-        GroupMember.role == "HOST"
+        GroupMember.role == "HOST",
+        GroupMember.status == "ACTIVE"
     ).first()
 
     if not host:

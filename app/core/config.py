@@ -1,4 +1,5 @@
 import os
+from urllib.parse import quote_plus
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        pwd = f":{self.DB_PASSWORD}" if self.DB_PASSWORD else ""
+        pwd = f":{quote_plus(self.DB_PASSWORD)}" if self.DB_PASSWORD else ""
         return f"mysql+pymysql://{self.DB_USER}{pwd}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
 
 settings = Settings()

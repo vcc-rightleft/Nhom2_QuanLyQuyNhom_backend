@@ -1,0 +1,175 @@
+Table bill_items {
+  id integer [pk, increment]
+  bill_id integer [not null]
+  name "varchar(255) collate utf8mb4_unicode_ci" [not null]
+  unit_price "decimal(15, 0)" [not null]
+  quantity integer [not null]
+  consumer_user_ids "varchar(255) collate utf8mb4_unicode_ci"
+}
+
+Table bill_shares {
+  id integer [pk, increment]
+  bill_id integer [not null]
+  member_id integer [not null]
+  amount "decimal(15, 0)" [not null]
+}
+
+Table bills {
+  id integer [pk, increment]
+  group_id integer [not null]
+  title "varchar(255) collate utf8mb4_unicode_ci" [not null]
+  bill_date datetime
+  total_amount "decimal(15, 2)" [not null]
+  paid_by integer
+  payer_id integer
+  split_type "varchar(50) collate utf8mb4_unicode_ci" [not null]
+  fee_split_mode "varchar(50) collate utf8mb4_unicode_ci"
+  items_subtotal "decimal(15, 2)"
+  service_ship_fee "decimal(15, 2)"
+  note "text collate utf8mb4_unicode_ci"
+  image_url "varchar(255) collate utf8mb4_unicode_ci"
+  created_by integer
+  created_at datetime [not null]
+}
+
+Table collection_campaigns {
+  collection_id integer [pk, increment]
+  group_id integer [not null]
+  name "varchar(255) collate utf8mb4_unicode_ci" [not null]
+  amount_per_member float [not null]
+  due_date "varchar(50) collate utf8mb4_unicode_ci"
+  status "varchar(50) collate utf8mb4_unicode_ci" [not null]
+  created_by integer
+  created_at datetime [not null]
+}
+
+Table collections {
+  collection_id bigint [pk, increment]
+  group_id bigint [not null]
+  name "varchar(200) collate utf8mb4_unicode_ci" [not null]
+  amount_per_member bigint [not null]
+  due_date datetime
+  status "varchar(20) collate utf8mb4_unicode_ci" [not null]
+  created_by bigint [not null]
+  created_at datetime [not null]
+}
+
+Table debts {
+  id integer [pk, increment]
+  group_id integer [not null]
+  source_type enum [not null]
+  debtor_id integer [not null]
+  payee_id integer [not null]
+  amount "decimal(12, 2)" [not null]
+  paid_amount "decimal(12, 2)"
+  status enum
+  created_at datetime
+  updated_at datetime
+}
+
+Table fund_groups {
+  id integer [pk, increment]
+  name "varchar(100) collate utf8mb4_unicode_ci" [not null]
+  description "text collate utf8mb4_unicode_ci"
+  image_url "varchar(255) collate utf8mb4_unicode_ci"
+  invite_code "varchar(8) collate utf8mb4_unicode_ci" [unique, not null]
+  status "varchar(20) collate utf8mb4_unicode_ci"
+  creator_id integer [not null]
+}
+
+Table fund_transaction_logs {
+  log_id integer [pk, increment]
+  transaction_id bigint [not null]
+  group_id bigint [not null]
+  action "varchar(20) collate utf8mb4_unicode_ci" [not null]
+  changed_by bigint [not null]
+  reason "text collate utf8mb4_unicode_ci" [not null]
+  old_data "text collate utf8mb4_unicode_ci"
+  new_data "text collate utf8mb4_unicode_ci"
+  changed_at datetime [not null]
+}
+
+Table fund_transactions {
+  transaction_id bigint [pk, increment]
+  group_id bigint [not null]
+  type "varchar(20) collate utf8mb4_unicode_ci" [not null]
+  amount bigint [not null]
+  category "varchar(100) collate utf8mb4_unicode_ci"
+  payer_id bigint
+  description "text collate utf8mb4_unicode_ci"
+  occurred_at datetime [not null]
+  proof_image_url "varchar(500) collate utf8mb4_unicode_ci"
+  status "varchar(20) collate utf8mb4_unicode_ci" [not null]
+  created_by bigint [not null]
+  created_at datetime [not null]
+  updated_at datetime
+}
+
+Table group_members {
+  id integer [pk, increment]
+  group_id integer [not null]
+  user_id integer [not null]
+  role "varchar(20) collate utf8mb4_unicode_ci"
+  status "varchar(20) collate utf8mb4_unicode_ci"
+}
+
+Table items {
+  id integer [pk, increment]
+  name "varchar(255) collate utf8mb4_unicode_ci" [not null]
+  description "text collate utf8mb4_unicode_ci"
+  price bigint
+}
+
+Table member_debts {
+  debt_id integer [pk, increment]
+  collection_id integer [not null]
+  user_id integer [not null]
+  member_name "varchar(255) collate utf8mb4_unicode_ci"
+  role "varchar(50) collate utf8mb4_unicode_ci"
+  amount_due float [not null]
+  status "varchar(50) collate utf8mb4_unicode_ci" [not null]
+  paid_at datetime
+}
+
+Table notifications {
+  id integer [pk, increment]
+  user_id integer [not null]
+  title "varchar(255) collate utf8mb4_unicode_ci" [not null]
+  message "text collate utf8mb4_unicode_ci" [not null]
+  is_read tinyint
+  created_at datetime
+}
+
+Table payments {
+  id integer [pk, increment]
+  debt_id integer [not null]
+  amount "decimal(12, 2)" [not null]
+  payment_method "varchar(50) collate utf8mb4_unicode_ci" [not null]
+  proof_image "varchar(255) collate utf8mb4_unicode_ci"
+  status enum
+  confirmed_by integer
+  created_at datetime
+}
+
+Table users {
+  id integer [pk, increment]
+  email "varchar(255) collate utf8mb4_unicode_ci" [unique, not null]
+  password_hash "varchar(255) collate utf8mb4_unicode_ci" [not null]
+  full_name "varchar(150) collate utf8mb4_unicode_ci" [not null]
+  phone "varchar(20) collate utf8mb4_unicode_ci"
+  avatar_url "varchar(500) collate utf8mb4_unicode_ci"
+  bank_name "varchar(100) collate utf8mb4_unicode_ci"
+  bank_account_no "varchar(50) collate utf8mb4_unicode_ci"
+  bank_account_name "varchar(150) collate utf8mb4_unicode_ci"
+  role enum [not null]
+  status enum [not null]
+  lock_reason "varchar(500) collate utf8mb4_unicode_ci"
+  created_at datetime [not null]
+  updated_at datetime [not null]
+}
+
+// Relationships
+Ref: fund_transaction_logs.transaction_id > fund_transactions.transaction_id
+Ref: member_debts.collection_id > collection_campaigns.collection_id
+Ref: notifications.user_id > users.id
+Ref: payments.debt_id > debts.id

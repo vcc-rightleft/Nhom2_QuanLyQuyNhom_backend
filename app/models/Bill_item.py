@@ -1,5 +1,6 @@
-from sqlalchemy import Column, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
+
 from app.db.session import Base
 
 
@@ -17,3 +18,5 @@ class BillItem(Base):
     quantity = Column(Integer, nullable=False)
 
     consumer_user_ids = Column(String(255), nullable=True)
+
+    bill = relationship("Bill", back_populates="items")
