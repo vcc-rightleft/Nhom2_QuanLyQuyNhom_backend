@@ -138,7 +138,8 @@ def create_split_bill_api(payload: BillSplitCreate, db: Session = Depends(get_db
                     debtor_id=member_id, payee_id=payload.paid_by, amount=amount, source_id=new_bill.id, commit=False)
                 debt_id = debt.id
                 db.add(Notification(user_id=member_id, title='Hóa đơn mới: ' + payload.title,
-                    message=f'Bạn cần thanh toán {amount:,}đ cho hóa đơn {payload.title}.'))
+                    message=f'Bạn cần thanh toán {amount:,}đ cho hóa đơn {payload.title}.',
+                    target_path=f'?view=user&tab=invoices&group_id={payload.group_id}&bill_id={new_bill.id}'))
             db.add(BillShare(bill_id=new_bill.id, member_id=member_id, amount=amount, debt_id=debt_id))
         db.commit()
         return {'id': new_bill.id, 'group_id': payload.group_id, 'split_type': payload.split_type,

@@ -9,7 +9,11 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.db.session import Base, engine
 
+# ==========================================
+# IMPORT MODELS
+# ==========================================
 # Import models để SQLAlchemy nhận diện các bảng
+
 from app.models.user import User
 from app.models.fund_group import FundGroup
 from app.models.group_member import GroupMember
@@ -19,13 +23,15 @@ from app.models.Bill_share import BillShare
 from app.models.FundTransaction import FundTransaction
 from app.models.Collection import CollectionCampaign, MemberDebt
 
-# Import các router
+
+# ==========================================
+# IMPORT ROUTERS
+# ==========================================
+
 from app.routers import (
     auth,
     bill,
     bills,
-    bill_split,
-    transaction_history,
     bill_split,
     collection,
     debt,
@@ -41,19 +47,27 @@ from app.routers import (
 from app.routers.groups import router as groups_router
 
 
-# Khởi tạo bảng nếu chưa tồn tại
+# ==========================================
+# KHỞI TẠO DATABASE
+# ==========================================
+
+# Tạo các bảng chưa tồn tại
 Base.metadata.create_all(bind=engine)
 
-# Khởi tạo FastAPI
+
+# ==========================================
+# KHỞI TẠO FASTAPI
+# ==========================================
+
 app = FastAPI(
     title="Nhóm 2 - Quản Lý Quỹ Nhóm API",
-    docs_url="/docs"
+    docs_url="/docs",
 )
 
 
-# ==============================
+# ==========================================
 # CẤU HÌNH CORS
-# ==============================
+# ==========================================
 
 cors_origins = (
     ["*"]
@@ -74,29 +88,77 @@ app.add_middleware(
 )
 
 
-# ==============================
-# ĐĂNG KÝ ROUTER
-# ==============================
+# ==========================================
+# ĐĂNG KÝ ROUTERS
+# ==========================================
 
-app.include_router(health.router, prefix="/api")
+# Kiểm tra trạng thái hệ thống
+app.include_router(
+    health.router,
+    prefix="/api",
+)
+
+# Xác thực tài khoản
 app.include_router(auth.router)
-app.include_router(groups_router, prefix="/api")
-app.include_router(fund.router, prefix="/api")
-app.include_router(debt.router, prefix="/api")
-app.include_router(bill.router, prefix="/api")
-app.include_router(bills.router, prefix="/api")
-app.include_router(bill_split.router, prefix="/api")
-app.include_router(transaction_history.router, prefix="/api")
+
+# Quản lý nhóm
+app.include_router(
+    groups_router,
+    prefix="/api",
+)
+
+# Quản lý quỹ
+app.include_router(
+    fund.router,
+    prefix="/api",
+)
+
+# Công nợ
+app.include_router(
+    debt.router,
+    prefix="/api",
+)
+
+# Hóa đơn
+app.include_router(
+    bill.router,
+    prefix="/api",
+)
+
+app.include_router(
+    bills.router,
+    prefix="/api",
+)
+
+# Chia hóa đơn
+app.include_router(
+    bill_split.router,
+    prefix="/api",
+)
+
+# Lịch sử giao dịch, sao kê
+app.include_router(
+    transaction_history.router,
+    prefix="/api",
+)
+
+# Thông tin người dùng
 app.include_router(user.router)
 
+# Thông báo
+app.include_router(
+    notification.router,
+    prefix="/api",
+)
 
-# ==============================
+
+# ==========================================
 # PHỤC VỤ GIAO DIỆN FRONTEND
-# ==============================
+# ==========================================
 
 FRONTEND_DIR = os.path.join(
     os.path.dirname(os.path.dirname(__file__)),
-    "frontend"
+    "frontend",
 )
 
 if os.path.isdir(FRONTEND_DIR):
@@ -104,9 +166,9 @@ if os.path.isdir(FRONTEND_DIR):
         "/frontend",
         StaticFiles(
             directory=FRONTEND_DIR,
-            html=True
+            html=True,
         ),
-        name="frontend"
+        name="frontend",
     )
 
 
@@ -120,7 +182,7 @@ def serve_fund_tab_ui():
 
     index_path = os.path.join(
         FRONTEND_DIR,
-        "index.html"
+        "index.html",
     )
 
     if not os.path.isfile(index_path):
@@ -129,15 +191,15 @@ def serve_fund_tab_ui():
             detail=(
                 "Không tìm thấy thư mục frontend trong Backend. "
                 "Hãy chạy server Frontend riêng."
-            )
+            ),
         )
 
     return FileResponse(index_path)
 
 
-# ==============================
+# ==========================================
 # ROOT API
-# ==============================
+# ==========================================
 
 @app.get("/")
 def root():
