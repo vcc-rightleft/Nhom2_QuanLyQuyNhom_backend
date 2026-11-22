@@ -43,10 +43,10 @@ class ConfirmPaymentRequest(BaseModel):
 
 # --- HELPERS ---
 def _ensure_host(role_header: Optional[str]):
-    if (role_header or "HOST").upper() != "HOST":
+    if (role_header or "HOST").upper() not in ("HOST", "ADMIN"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chỉ Host mới có quyền thực hiện thao tác này!",
+            detail="Chỉ Host hoặc Admin mới có quyền thực hiện thao tác này!",
         )
 
 

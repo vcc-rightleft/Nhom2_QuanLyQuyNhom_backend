@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -35,9 +35,15 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Nhóm 2 - Quản Lý Quỹ Nhóm API", docs_url="/docs")
 
+cors_origins = (
+    ["*"]
+    if settings.CORS_ORIGINS.strip() == "*"
+    else [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,7 +68,7 @@ app.include_router(expense.router, prefix="/api")
 app.include_router(bill_split.router, prefix="/api")
 app.include_router(transaction_history.router, prefix="/api")
 
-# Phục vụ giao diện [UI] Tab Quỹ chung (T3CCFBA)
+# Phục vụ giao diện [UI] Tab Quỹ chung (T3CCFBA) nếu thư mục frontend nằm trong backend
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 if os.path.isdir(FRONTEND_DIR):
     app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
@@ -73,6 +79,11 @@ if os.path.isdir(FRONTEND_DIR):
 def serve_fund_tab_ui():
     """Trả về giao diện [UI] Tab Quỹ chung (T3CCFBA)."""
     index_path = os.path.join(FRONTEND_DIR, "index.html")
+    if not os.path.isfile(index_path):
+        raise HTTPException(
+            status_code=404,
+            detail="Không tìm thấy thư mục frontend trong backend. Hãy chạy server Frontend riêng.",
+        )
     return FileResponse(index_path)
 
 

@@ -1,6 +1,8 @@
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+
 from app.crud.user import invalidate_user_tokens
 from app.models.user import User, SystemRole, UserStatus
 from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
@@ -34,7 +36,14 @@ def get_current_user(
             detail="Token không hợp lệ hoặc đã hết hạn.",
         )
 
-    user_id = int(payload["sub"])
+    try:
+        user_id = int(payload["sub"])
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token không hợp lệ.",
+        )
+
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
@@ -65,15 +74,18 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
             detail="Email này đã được sử dụng (409 Conflict).",
         )
 
+    clean_name = payload.full_name.strip()
+    encoded_name = quote(clean_name)
+
     new_user = User(
         email=email_clean,
         password_hash=hash_password(payload.password),
-        full_name=payload.full_name.strip(),
+        full_name=clean_name,
         phone=payload.phone,
-        avatar_url=f"https://ui-avatars.com/api/?name={payload.full_name.strip()}&background=1E3A8A&color=fff",
+        avatar_url=f"https://ui-avatars.com/api/?name={encoded_name}&background=1E3A8A&color=fff",
         bank_name=payload.bank_name,
         bank_account_no=payload.bank_account_no,
-        bank_account_name=payload.bank_account_name or payload.full_name.strip().upper(),
+        bank_account_name=payload.bank_account_name or clean_name.upper(),
         role=SystemRole.USER,
         status=UserStatus.ACTIVE,
     )
@@ -104,8 +116,9 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             detail=f"Tài khoản đã bị khóa. Lý do: {user.lock_reason or 'Vi phạm quy định'}",
         )
 
+    role_value = user.role.value if hasattr(user.role, "value") else str(user.role)
     access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email, "role": user.role.value}
+        data={"sub": str(user.id), "email": user.email, "role": role_value}
     )
     return TokenResponse(access_token=access_token, user=user)
 
@@ -122,6 +135,6 @@ def get_me(current_user: User = Depends(get_current_user)):
 @router.post("/logout", summary="Đăng xuất và vô hiệu hóa JWT Token hiện tại")
 def logout_user(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     return invalidate_user_tokens(db=db, current_user=current_user)
