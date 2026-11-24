@@ -28,6 +28,7 @@ from app.routers import (
     notification,
     transaction_history,
     user,
+    admin,
 )
 from app.routers.groups import router as groups_router
 
@@ -61,6 +62,8 @@ app.include_router(collection.router)
 app.include_router(expense.router, prefix="/api")
 app.include_router(bill_split.router, prefix="/api")
 app.include_router(transaction_history.router, prefix="/api")
+app.include_router(user.router)
+app.include_router(admin.router)
 
 # Phục vụ giao diện [UI] Tab Quỹ chung (T3CCFBA)
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
