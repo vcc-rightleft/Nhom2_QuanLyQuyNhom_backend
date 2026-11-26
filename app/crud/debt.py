@@ -2,6 +2,8 @@ from decimal import Decimal
 from typing import Dict, Iterable, List, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
+from app.models.fund_group import FundGroup
+from app.core.deps import ensure_group_active
 from app.models.debt_payment import (
     Debt,
     Payment,
@@ -192,8 +194,18 @@ def get_debts_owed_by_me(db: Session, user_id: int, group_id: int = None):
         Debt.debtor_id == user_id,
         Debt.status != DebtStatusEnum.PAID,
     )
+    query = query.join(
+        FundGroup,
+        FundGroup.id == Debt.group_id
+    ).filter(
+        FundGroup.status == "ACTIVE",
+        FundGroup.deleted_at.is_(None)
+    )
+
     if group_id is not None:
+        ensure_group_active(db, group_id)
         query = query.filter(Debt.group_id == group_id)
+
     return query.all()
 
 
@@ -206,8 +218,18 @@ def get_debts_owed_to_me(db: Session, user_id: int, group_id: int = None):
         Debt.payee_id == user_id,
         Debt.status != DebtStatusEnum.PAID,
     )
+    query = query.join(
+        FundGroup,
+        FundGroup.id == Debt.group_id
+    ).filter(
+        FundGroup.status == "ACTIVE",
+        FundGroup.deleted_at.is_(None)
+    )
+
     if group_id is not None:
+        ensure_group_active(db, group_id)
         query = query.filter(Debt.group_id == group_id)
+
     return query.all()
 
 def create_payment_request(db: Session, obj_in: PaymentCreate, user_id: int):

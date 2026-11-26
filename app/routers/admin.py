@@ -72,6 +72,42 @@ def _is_group_deleted(group: FundGroup) -> bool:
     return status_val in ("DELETED", "SOFT_DELETED")
 
 
+def _get_group_activity_time(
+    group: FundGroup,
+    last_tx: Optional[datetime]
+) -> Optional[datetime]:
+
+    dates = [
+        value
+        for value in (group.created_at, last_tx)
+        if value is not None
+    ]
+
+    return max(dates) if dates else None
+
+
+def _is_group_inactive_30d(
+    group: FundGroup,
+    last_tx: Optional[datetime],
+    now: datetime
+) -> bool:
+
+    if _is_group_deleted(group):
+        return False
+
+    activity_time = _get_group_activity_time(
+        group,
+        last_tx
+    )
+
+    if activity_time is None:
+        return False
+
+    cutoff = now - timedelta(days=30)
+
+    return activity_time <= cutoff
+
+
 def _get_group_unpaid_debt(db: Session, group_id: int) -> int:
     debts = (
         db.query(Debt)
@@ -247,7 +283,10 @@ def get_admin_dashboard(
     # Nhóm mới theo tháng (YYYY-MM)
     monthly_counter = defaultdict(int)
     for g in active_groups:
-        ref_dt = g.created_at or _get_last_tx_time(db, g.id) or now
+        ref_dt = g.created_at
+
+        if ref_dt is None:
+            continue
         if since and ref_dt < since:
             continue
         monthly_counter[ref_dt.strftime("%Y-%m")] += 1
@@ -262,7 +301,7 @@ def get_admin_dashboard(
     inactive_30d_count = 0
     for g in active_groups:
         last_tx = _get_last_tx_time(db, g.id)
-        if last_tx is None or last_tx < cutoff_30d:
+        if _is_group_inactive_30d(g, last_tx, now):
             inactive_30d_count += 1
 
     return {
@@ -299,7 +338,8 @@ def get_admin_groups(
     for g in groups:
         is_deleted = _is_group_deleted(g)
         last_tx = _get_last_tx_time(db, g.id)
-        is_inactive_30d = (not is_deleted) and (last_tx is None or last_tx < cutoff_30d)
+        is_inactive_30d = _is_group_inactive_30d(g, last_tx, now)
+        activity_time = _get_group_activity_time(g, last_tx)
 
         if filter == "inactive_30d" and not is_inactive_30d:
             continue
@@ -341,11 +381,14 @@ def get_admin_groups(
             "host_name": host_user.full_name if host_user else "—",
             "member_count": int(member_count),
             "last_transaction_at": last_tx.isoformat() if last_tx else None,
-            "last_activity_at": (last_tx or g.created_at).isoformat() if (last_tx or g.created_at) else None,
+            "last_activity_at": activity_time.isoformat() if activity_time else None,
+            "created_at": g.created_at.isoformat() if g.created_at else None,
+            "is_inactive_30d": is_inactive_30d,
+            "activity_time_known": activity_time is not None,
             "unpaid_debt": int(unpaid_debt),
             "is_deleted": is_deleted,
             "status": "soft_deleted" if is_deleted else "active",
-            "can_soft_delete": (not is_deleted) and unpaid_debt == 0,
+            "can_soft_delete": is_inactive_30d and unpaid_debt == 0,
         })
 
     return {"total": len(items), "items": items}
@@ -363,6 +406,21 @@ def soft_delete_admin_group(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Không tìm thấy nhóm hoặc nhóm đã bị xóa mềm trước đó.",
+        )
+
+    last_tx = _get_last_tx_time(db, group_id)
+
+    if not _is_group_inactive_30d(
+        group,
+        last_tx,
+        datetime.utcnow()
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Chỉ được xóa mềm nhóm không có giao dịch "
+                "ít nhất 30 ngày và có mốc thời gian xác định."
+            )
         )
 
     unpaid_debt = _get_group_unpaid_debt(db, group_id)

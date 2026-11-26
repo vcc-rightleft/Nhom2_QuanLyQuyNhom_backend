@@ -3,6 +3,7 @@ import string
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from app.core.deps import ensure_group_active
 
 from app.models.fund_group import FundGroup
 from app.models.group_member import GroupMember
@@ -73,6 +74,8 @@ def join_group(db: Session, invite_code: str, user_id: int):
             detail="Không tìm thấy mã mời"
         )
 
+    ensure_group_active(db, group.id)
+
     if group.status == "ARCHIVED":
         raise HTTPException(
             status_code=400,
@@ -123,7 +126,11 @@ def get_my_groups(db: Session, user_id: int):
             FundGroup.id == membership.group_id
         ).first()
 
-        if not group or group.status != "ACTIVE":
+        if (
+            not group
+            or group.status != "ACTIVE"
+            or group.deleted_at is not None
+        ):
             continue
 
         member_count = db.query(GroupMember).filter(
@@ -145,6 +152,7 @@ def get_my_groups(db: Session, user_id: int):
 
 
 def get_group_detail(db: Session, group_id: int):
+    ensure_group_active(db, group_id)
     group = db.query(FundGroup).filter(
         FundGroup.id == group_id
     ).first()
@@ -166,6 +174,7 @@ def get_group_detail(db: Session, group_id: int):
 
 
 def get_group_members(db: Session, group_id: int):
+    ensure_group_active(db, group_id)
     members = db.query(GroupMember).filter(
         GroupMember.group_id == group_id
     ).all()
@@ -209,6 +218,7 @@ def leave_group(
     group_id: int,
     user_id: int
 ):
+    ensure_group_active(db, group_id)
     member = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
         GroupMember.user_id == user_id,
@@ -247,6 +257,7 @@ def transfer_host(
     current_host_id: int,
     new_host_id: int
 ):
+    ensure_group_active(db, group_id)
     current_host = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
         GroupMember.user_id == current_host_id,
@@ -288,6 +299,7 @@ def remove_member(
     host_id: int,
     member_id: int
 ):
+    ensure_group_active(db, group_id)
     host = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
         GroupMember.user_id == host_id,

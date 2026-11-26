@@ -15,7 +15,7 @@ from app.models.Bill_share import BillShare
 from app.models.debt_payment import Debt
 from app.models.user import User
 from app.models.group_member import GroupMember
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, ensure_group_active
 from app.schemas.bill_preview import BillPreviewRequest
 from app.schemas.bill import (
     BillCancelResponse,
@@ -37,6 +37,7 @@ VALID_SPLIT_TYPES = {"EQUAL", "ITEMIZED", "CUSTOM"}
 
 
 def _check_bill_access(db: Session, group_id: int, user: User, host: bool = False):
+    ensure_group_active(db, group_id)
     if user.role.value == "ADMIN":
         return
     roles = ["HOST"] if host else ["HOST", "MEMBER"]

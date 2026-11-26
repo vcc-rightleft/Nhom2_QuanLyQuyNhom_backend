@@ -1,3 +1,4 @@
+from app.core.deps import ensure_group_active
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 from typing import Dict, List
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,6 +22,7 @@ from app.schemas.bill_split import (
 router = APIRouter(prefix="/bills", tags=["Bill Splitting (Itemized & Custom)"])
 
 def _verify_invoice_permissions(db: Session, user: User, group_id: int, payer_id: int, created_by: int, participant_ids: List[int]):
+    ensure_group_active(db, group_id)
     if user.id != payer_id or user.id != created_by:
         raise HTTPException(status_code=403, detail="Người tạo và người trả phải là tài khoản đăng nhập")
     active_members = db.query(GroupMember).filter(
@@ -416,6 +418,9 @@ def api_split_bill_custom(
 @router.get("/{bill_id}", summary="Xem chi tiết hoá đơn và phân bổ công nợ")
 def api_get_bill_detail(bill_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
+
+    if bill:
+        ensure_group_active(db, bill.group_id)
     if bill and not db.query(GroupMember).filter(GroupMember.group_id == bill.group_id, GroupMember.user_id == current_user.id, GroupMember.status == "ACTIVE").first():
         raise HTTPException(status_code=403, detail="Bạn không thuộc nhóm của hóa đơn")
     if not bill:

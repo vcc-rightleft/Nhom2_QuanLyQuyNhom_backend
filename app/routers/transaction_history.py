@@ -11,7 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, ensure_group_active
 from app.models.user import User, SystemRole
 from app.models.Calculate import get_group_fund_balance
 from app.models.FundTransaction import FundTransaction, FundTransactionLog
@@ -33,6 +33,8 @@ EDIT_WINDOW_SECONDS = 24 * 3600  # 24 giờ
 
 def _verify_group_member(db: Session, group_id: int, viewer_id: int) -> None:
     """Kiểm tra chỉ thành viên thuộc nhóm (group_id) mới có quyền xem lịch sử giao dịch."""
+    ensure_group_active(db, group_id)
+
     if viewer_id <= 0:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -402,6 +404,8 @@ def update_fund_transaction_within_24h(
         )
 
     # Client-supplied role/host_id cannot authorize a financial mutation.
+    ensure_group_active(db, tx.group_id)
+
     active_host = db.query(GroupMember).filter(
         GroupMember.group_id == tx.group_id,
         GroupMember.user_id == current_user.id,
@@ -526,6 +530,8 @@ def cancel_fund_transaction_within_24h(
         )
 
     # Client-supplied role/host_id cannot authorize a financial mutation.
+    ensure_group_active(db, tx.group_id)
+
     active_host = db.query(GroupMember).filter(
         GroupMember.group_id == tx.group_id,
         GroupMember.user_id == current_user.id,
