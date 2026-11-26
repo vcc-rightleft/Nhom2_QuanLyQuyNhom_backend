@@ -1,3 +1,5 @@
+from pydantic import field_validator
+from app.core.validators import validate_password
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -15,7 +17,13 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=6, max_length=64)
+
+    @field_validator("password")
+    @classmethod
+    def check_password(cls, value: str) -> str:
+        return validate_password(value)
+
 
 
 class UserUpdateProfile(BaseModel):
@@ -51,7 +59,13 @@ class UserResponse(UserBase):
 
 class ChangePasswordRequest(BaseModel):
     old_password: str = Field(..., min_length=1, description="Mật khẩu hiện tại")
-    new_password: str = Field(..., min_length=6, max_length=100, description="Mật khẩu mới tối thiểu 6 ký tự")
+    new_password: str = Field(..., min_length=6, max_length=64)
+
+    @field_validator("new_password")
+    @classmethod
+    def check_new_password(cls, value: str) -> str:
+        return validate_password(value)
+
 
 
 # Alias giữ tương thích với app/crud/user.py và app/routers/user.py

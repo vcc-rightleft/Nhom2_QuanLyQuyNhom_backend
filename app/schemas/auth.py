@@ -1,3 +1,5 @@
+from pydantic import field_validator
+from app.core.validators import validate_password
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
 from app.schemas.user import UserResponse
@@ -5,7 +7,13 @@ from app.schemas.user import UserResponse
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=6, description="Mật khẩu tối thiểu 6 ký tự")
+    password: str = Field(..., min_length=6, max_length=64)
+
+    @field_validator("password")
+    @classmethod
+    def check_password(cls, value: str) -> str:
+        return validate_password(value)
+
     full_name: str = Field(..., min_length=2, max_length=150)
     phone: Optional[str] = Field(None, max_length=20)
     bank_name: Optional[str] = None
